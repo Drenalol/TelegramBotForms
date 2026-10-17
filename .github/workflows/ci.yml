@@ -1,0 +1,70 @@
+name: CI
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.x
+      - name: Build
+        run: dotnet build telegram-bot-forms.sln --configuration Release
+      - name: Test
+        run: dotnet test telegram-bot-forms.tests --configuration Release --no-build
+
+  publish:
+    # Publishes on every push to master with the <Version> from telegram-bot-forms.csproj.
+    # To ship a new package, bump <Version>, commit and push.
+    # It goes to two registries: GitHub Packages (shown on the repo Packages page, GITHUB_TOKEN)
+    # and nuget.org (NuGet Trusted Publishing/OIDC, needs a NUGET_USER secret with the nuget.org
+    # profile name), plus a GitHub Release with the packages attached.
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+
+    permissions:
+      id-token: write
+      contents: write
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.x
+      - name: Pack
+        run: dotnet pack telegram-bot-forms --configuration Release -o "./packages"
+      - name: Publish to GitHub Packages
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          dotnet nuget add source --username "$GITHUB_ACTOR" --password "$GITHUB_TOKEN" --store-password-in-clear-text --name github "https://nuget.pkg.github.com/Drenalol/index.json"
+          dotnet nuget push "./packages/*.nupkg" --api-key "$GITHUB_TOKEN" --source github --skip-duplicate
+      - name: NuGet login (OIDC to temp API key)
+        uses: NuGet/login@v1
+        id: login
+        with:
+          user: ${{ secrets.NUGET_USER }}
+      - name: Push to NuGet
+        run: |
+          dotnet nuget push "./packages/*.nupkg" --api-key ${{steps.login.outputs.NUGET_API_KEY}} --source https://api.nuget.org/v3/index.json --skip-duplicate
+          dotnet nuget push "./packages/*.snupkg" --api-key ${{steps.login.outputs.NUGET_API_KEY}} --source https://api.nuget.org/v3/index.json --skip-duplicate
+      - name: Tag and GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          version=$(grep -oP '(?<=<Version>)[^<]+' telegram-bot-forms/telegram-bot-forms.csproj)
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "v$version" 2>/dev/null || true
+          git push origin "v$version" 2>/dev/null || true
+          gh release create "v$version" ./packages/*.nupkg ./packages/*.snupkg --title "v$version" --generate-notes 2>/dev/null || true

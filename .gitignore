@@ -1,0 +1,16 @@
+## .NET
+bin/
+obj/
+*.user
+*.suo
+.vs/
+.idea/
+[Rr]elease/
+[Dd]ebug/
+artifacts/
+packages/
+*.nupkg
+*.snupkg
+
+## .NET user secrets (never commit bot tokens)
+appsettings.*.Local.json
