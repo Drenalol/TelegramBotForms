@@ -57,6 +57,12 @@ public class TelegramBotStartup : BackgroundService
     if (_botProfileOptions.IsConfigured)
       await BotProfile.ApplyAsync(_telegramBotClient, _botProfileOptions, _logger, stoppingToken);
 
+    // GetMe validates the token up front (a bad one fails the host here, loudly) and
+    // the line below is the visible "the bot is alive and polling" marker - polling
+    // itself is otherwise completely silent.
+    var botProfile = await _telegramBotClient.GetMe(stoppingToken);
+    _logger.LogInformation("Telegram bot @{Username} (id {BotId}) is polling", botProfile.Username, botProfile.Id);
+
     // The awaited update handler is what gives polling its backpressure: the loop waits
     // for the update to enter the bus before requesting the next one.
     Func<ITelegramBotClient, Update, CancellationToken, Task> handleUpdateAsync =
