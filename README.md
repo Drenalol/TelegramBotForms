@@ -161,7 +161,7 @@ public sealed class ProfileForm(ProfileStore store) : ExtendedFormBase<ProfileSt
     : State == ProfileState.EditName ? CustomRender(SaveNameAsync)
     : throw new InvalidOperationException($"Nothing routes: {context.Text}");
 
-  // ... ShowAsync / AskNameAsync / SaveNameAsync as in example-bot/Bot/ProfileForm.cs
+  // ... ShowAsync / AskNameAsync / SaveNameAsync as in telegram-bot-forms-example/Bot/ProfileForm.cs
 }
 ```
 
@@ -280,7 +280,7 @@ which reads the parameter from `context.Text`.
 
 ## Example bot
 
-[`example-bot/`](example-bot) demonstrates every feature end to end: consent-gated start
+[`telegram-bot-forms-example/`](telegram-bot-forms-example) demonstrates every feature end to end: consent-gated start
 with a deep-link parameter, a ru/en main menu, a paginated + searchable products list
 with a custom action row, a detail page reached by navigation, an input wizard, a
 per-chat language switcher, a time zone picker, a `/help` command and a code-owned
@@ -290,7 +290,7 @@ Put a bot token (create one with [@BotFather](https://t.me/BotFather)) into user
 and run:
 
 ```shell
-cd example-bot
+cd telegram-bot-forms-example
 dotnet user-secrets init
 dotnet user-secrets set "TelegramBotForms:Token" "123456:ABC-your-token"
 dotnet run
@@ -302,7 +302,7 @@ dotnet run
 |---|---|
 | `telegram-bot-forms/` | the library (multi-targets `netstandard2.1` + `net10.0`) |
 | `telegram-bot-forms.tests/` | NUnit tests for routing, history, pagination, bus |
-| `example-bot/` | console bot demonstrating every feature |
+| `telegram-bot-forms-example/` | console bot demonstrating every feature |
 | `.github/workflows/ci.yml` | build + test on PR; pack & publish to nuget.org and GitHub Packages on master |
 
 ## Publishing
