@@ -8,10 +8,6 @@ A chat-first Telegram bot framework on top of [Telegram.Bot](https://github.com/
 conversations are **forms** resolved from DI, every chat has a **navigation history**
 with a working "Back", browsers come with **pagination and search** out of the box.
 
-Born in a production trading-bot ([stock-indicators.app](https://stockindicators.app)) where
-it serves a localized menu bot with subscription/instrument/indicator browsers, in-bot
-registration and settings.
-
 ## Features
 
 - **Forms with DI** — every conversation step resolves its form from a fresh DI scope;
