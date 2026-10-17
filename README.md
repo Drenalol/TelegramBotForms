@@ -286,13 +286,16 @@ with a custom action row, a detail page reached by navigation, an input wizard, 
 per-chat language switcher, a time zone picker, a `/help` command and a code-owned
 bot profile.
 
-Put a bot token (create one with [@BotFather](https://t.me/BotFather)) into user secrets
-and run:
+Put a bot token (create one with [@BotFather](https://t.me/BotFather)) into the gitignored
+`appsettings.Local.json` (next to the committed placeholder `appsettings.json`) and run:
 
 ```shell
 cd telegram-bot-forms-example
-dotnet user-secrets init
-dotnet user-secrets set "TelegramBotForms:Token" "123456:ABC-your-token"
+cat > appsettings.Local.json <<'EOF'
+{
+  "TelegramBotForms": { "Token": "123456:ABC-your-token" }
+}
+EOF
 dotnet run
 ```
 

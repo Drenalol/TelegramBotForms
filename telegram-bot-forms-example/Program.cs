@@ -3,10 +3,15 @@ using Drenalol.Telegram.Bot.Forms.Localization;
 using Drenalol.Telegram.Bot.Forms.Profile;
 using ExampleBot.Bot;
 using ExampleBot.Data;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
 var builder = Host.CreateApplicationBuilder(args);
+
+// Real bot tokens live in the gitignored appsettings.Local.json (next to the committed
+// placeholder appsettings.json), so secrets never reach git.
+builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: false);
 
 // Application services. The custom localizer and chat-language resolver are registered
 // BEFORE AddTelegramBotForms, so its TryAdd defaults (English-only texts, single
@@ -21,8 +26,8 @@ builder.Services.AddSingleton<ProductCatalog>();
 
 var bot = builder.Services.AddTelegramBotForms(options =>
 {
-  // Put your own bot token into appsettings.Development.json (gitignored) or
-  // `dotnet user-secrets set "TelegramBotForms:Token" "123:abc"` - never into git.
+  // The token comes from appsettings.Local.json (gitignored, loaded above);
+  // never commit real tokens to the placeholder appsettings.json.
   options.Token = builder.Configuration["TelegramBotForms:Token"] ?? string.Empty;
   options.BotLink = builder.Configuration["TelegramBotForms:BotLink"] ?? "https://t.me/your_example_bot";
 });

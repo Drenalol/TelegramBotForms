@@ -12,5 +12,6 @@ packages/
 *.nupkg
 *.snupkg
 
-## .NET user secrets (never commit bot tokens)
+## .NET user secrets and local overrides (never commit bot tokens)
+appsettings.Local.json
 appsettings.*.Local.json
