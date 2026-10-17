@@ -20,6 +20,9 @@
 
     <ItemGroup>
         <None Update="appsettings.json" CopyToOutputDirectory="PreserveNewest" />
+        <!-- the gitignored local secrets (bot token) travel with the build output, so
+             running the compiled binary directly works the same as `dotnet run` -->
+        <None Update="appsettings.Local.json" CopyToOutputDirectory="PreserveNewest" Condition="Exists('appsettings.Local.json')" />
     </ItemGroup>
 
 </Project>
