@@ -1,3 +1,4 @@
+using Drenalol.Telegram.Bot.Forms.Localization;
 using Microsoft.Extensions.DependencyInjection;
 using NUnit.Framework;
 using Telegram.Bot.Types;
@@ -232,5 +233,21 @@ public class RoutingTests
     var other = await _router.RenderAsync(TestBot.Chat(2), "Back");
 
     Assert.That(other!.ReplyText, Is.EqualTo("start"));
+  }
+
+  [Test]
+  public async Task Async_Back_Row_Carries_The_Localized_Back_Text_Not_The_Language_Code()
+  {
+    var router = TestBot.Router(
+      services => services.AddSingleton<IChatLanguageResolver, RussianFor99Resolver>(),
+      configurator => configurator
+        .RegisterStartForm<StartStub>()
+        .RegisterFormWithKey<AsyncBackRowStub>("AsyncBack"));
+
+    var english = await router.RenderAsync(TestBot.Chat(1), "AsyncBack");
+    Assert.That(english!.Labels(), Is.EquivalentTo(["Back"]));
+
+    var russian = await router.RenderAsync(TestBot.Chat(99), "AsyncBack");
+    Assert.That(russian!.Labels(), Is.EquivalentTo(["Назад"]));
   }
 }

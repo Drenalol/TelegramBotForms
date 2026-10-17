@@ -250,3 +250,10 @@ internal sealed class RussianFor99Resolver : IChatLanguageResolver
   public Task<string> ResolveAsync(Chat chat, CancellationToken cancellationToken = default) =>
     Task.FromResult(chat.Id == 99 ? DefaultTextLocalizer.Russian : DefaultTextLocalizer.English);
 }
+
+/// <summary>Renders only the localized "Back" row built asynchronously from the chat language.</summary>
+internal sealed class AsyncBackRowStub : FormBase
+{
+  public override async Task<MessageContext> RenderAsync(MessageContext context, CancellationToken cancellationToken) =>
+    context.Reply("async-back", [await CreateBackButtonRowAsync(context.Chat, cancellationToken)]);
+}

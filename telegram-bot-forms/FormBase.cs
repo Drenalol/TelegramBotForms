@@ -42,8 +42,12 @@ public abstract class FormBase : IForm, IAsyncDisposable
   protected KeyboardButton[] CreateBackButtonRow(string text) => [new KeyboardButton(text)];
 
   /// <summary>A one-button "Back" row in the chat's language.</summary>
-  protected async Task<KeyboardButton[]> CreateBackButtonRowAsync(Chat chat, CancellationToken cancellationToken = default) =>
-    [new KeyboardButton(await GetLanguageAsync(chat, cancellationToken).ConfigureAwait(false))];
+  protected async Task<KeyboardButton[]> CreateBackButtonRowAsync(Chat chat, CancellationToken cancellationToken = default)
+  {
+    var language = await GetLanguageAsync(chat, cancellationToken).ConfigureAwait(false);
+
+    return [new KeyboardButton(_localizer.Back(language))];
+  }
 
   /// <summary>The language this chat should be answered in.</summary>
   protected Task<string> GetLanguageAsync(Chat chat, CancellationToken cancellationToken = default) =>
