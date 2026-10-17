@@ -1,33 +1,75 @@
 using Drenalol.Telegram.Bot.Forms;
+using Drenalol.Telegram.Bot.Forms.Localization;
 using Drenalol.Telegram.Bot.Forms.TimeZones;
-using Telegram.Bot.Types.ReplyMarkups;
 
 namespace ExampleBot.Bot;
 
-/// <summary>
-/// A settings-style picker built on the framework's curated <see cref="TelegramTimeZones"/>
-/// quick-pick list (IANA id + current UTC offset in the label).
-/// </summary>
-public sealed class TimeZoneForm : FormBase
+public enum TimeZoneState
 {
-  public override async Task<MessageContext> RenderAsync(MessageContext context, CancellationToken cancellationToken)
+  /// <summary>The single state of this form: "choose the zone this button stands for".</summary>
+  OnSelect,
+}
+
+/// <summary>
+/// A settings-style time zone picker built on the framework's curated
+/// <see cref="TelegramTimeZones"/> quick-pick list (IANA id + current UTC offset in the
+/// label), with the chat's current zone checkmarked. Stateful like the language picker,
+/// so a zone press is delivered back to this form.
+/// </summary>
+public sealed class TimeZoneForm : NavigationFormBase<TimeZoneState>
+{
+  private readonly TimeZoneStore _store;
+
+  public TimeZoneForm(TimeZoneStore store)
   {
+    _store = store;
+
+    AddRenderOn(TimeZoneState.OnSelect, string.Empty, (context, cancellationToken) => SelectAsync(context.Text, context, cancellationToken));
+  }
+
+  protected override async Task<MessageContext> RenderInitAsync(MessageContext context, CancellationToken cancellationToken)
+  {
+    Rows.Clear();
+    _buttons.Clear();
+
     var language = await GetLanguageAsync(context.Chat, cancellationToken);
-    var zones = TelegramTimeZones.Popular();
+    var current = _store.Get(context.Chat.Id);
 
-    var picked = zones.FirstOrDefault(zone =>
-      string.Equals(zone.Label, context.Text, StringComparison.OrdinalIgnoreCase) ||
-      string.Equals(zone.Id, context.Text, StringComparison.OrdinalIgnoreCase));
+    foreach (var zone in TelegramTimeZones.Popular())
+      AddRow(Mark(zone.Label, current), TimeZoneState.OnSelect);
 
-    if (picked.Id is not null)
-      return context.Reply(ExampleTexts.TimeZoneSaved(language, picked.Id), [await CreateBackButtonRowAsync(context.Chat, cancellationToken)]);
+    AddBackButton(Localizer.Back(language));
+
+    return context.Reply(ExampleTexts.TimeZoneTitle(language, current), replyMarkup: BuildKeyboard());
+  }
+
+  private async Task<MessageContext> SelectAsync(string option, MessageContext context, CancellationToken cancellationToken)
+  {
+    var label = Unmark(option);
+
+    var zone = TelegramTimeZones.Popular().FirstOrDefault(candidate =>
+      string.Equals(candidate.Label, label, StringComparison.OrdinalIgnoreCase) ||
+      string.Equals(candidate.Id, label, StringComparison.OrdinalIgnoreCase));
+
+    if (zone.Id is null)
+      return await RenderInitAsync(context, cancellationToken);
+
+    _store.Set(context.Chat.Id, zone.Id);
+
+    // Completed: "Back" later skips this picker instead of showing it again.
+    IsCompleted = true;
+
+    var language = await GetLanguageAsync(context.Chat, cancellationToken);
 
     return context.Reply(
-      ExampleTexts.TimeZoneTitle(language),
-      [
-        .. zones.Select(zone => new[] { new KeyboardButton(zone.Label) }),
-        await CreateBackButtonRowAsync(context.Chat, cancellationToken),
-      ]
+      ExampleTexts.TimeZoneSaved(language, zone.Id),
+      [await CreateBackButtonRowAsync(context.Chat, cancellationToken)]
     );
   }
+
+  private static string Mark(string label, string currentId) =>
+    label == currentId || label.StartsWith(currentId + " · ", StringComparison.Ordinal) ? $"✓ {label}" : label;
+
+  private static string Unmark(string option) =>
+    option.StartsWith("✓ ", StringComparison.Ordinal) ? option[2..].Trim() : option.Trim();
 }

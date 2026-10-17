@@ -115,13 +115,13 @@ public sealed class ExampleTexts : ITelegramTextLocalizer
     ? "Выберите язык бота:"
     : "Choose the bot language:";
 
-  public static string TimeZoneTitle(string language) => language == Russian
-    ? "Выберите часовой пояс (демо, ничего не сохраняется):"
-    : "Pick a time zone (demo, nothing is stored):";
+  public static string TimeZoneTitle(string language, string current) => language == Russian
+    ? $"Ваш часовой пояс: {current}\nВыберите другой:"
+    : $"Your time zone: {current}\nPick another one:";
 
   public static string TimeZoneSaved(string language, string id) => language == Russian
-    ? $"Часовой пояс выбран (демо): {id}"
-    : $"Time zone picked (demo): {id}";
+    ? $"Часовой пояс сохранён: {id}"
+    : $"Time zone saved: {id}";
 
   public static string Help(string language) => language == Russian
     ? "Команды:\n/help - эта справка\n/language - выбор языка\n/start - главное меню\n\nСовет: напишите любой текст, когда открыт список товаров, - он станет поисковым запросом."
