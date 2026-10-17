@@ -32,16 +32,16 @@ internal sealed class FormCollection : IFormRetriever
     _state = new ConcurrentDictionary<Chat, ConcurrentStack<IForm>>(ChatComparer.Instance);
   }
 
-  public Task<IForm?> GetAsync(Chat chat, string key)
+  public async Task<IForm?> GetAsync(Chat chat, string key)
   {
     // "/start <parameter>" (Telegram deep links, t.me/<bot>?start=<parameter>) opens the
     // start form; the form itself reads the parameter after "/start".
     var lookupKey = FirstToken(key) == BotCommands.Start ? "/start" : key;
 
-    return Task.FromResult(TryGetCommand(chat, key) ?? Get(chat, TryGet(lookupKey)));
+    return TryGetCommand(chat, key) ?? await GetByTargetAsync(chat, TryGet(lookupKey));
   }
 
-  IForm IFormRetriever.Get(Chat chat, Type formType) => Get(chat, formObj: formType)!;
+  IForm IFormRetriever.Get(Chat chat, Type formType) => CreateNavigationWrapper(chat, formType);
 
   private static string? FirstToken(string key) =>
     key.Split(' ', StringSplitOptions.RemoveEmptyEntries)
@@ -65,7 +65,7 @@ internal sealed class FormCollection : IFormRetriever
     return new FormWrapper(new CommandFormAdapter(command, scope), GetHistory(chat), _localizer, skipPush: true);
   }
 
-  private IForm? Get(Chat chat, object? formObj)
+  private async Task<IForm?> GetByTargetAsync(Chat chat, object? formObj)
   {
     var history = GetHistory(chat);
 
@@ -74,17 +74,21 @@ internal sealed class FormCollection : IFormRetriever
     if (formObj == null && history.TryGetLastForm() is IStatefulForm statefulForm)
       return new FormWrapper(statefulForm, history, _localizer, true);
 
-    if (formObj is Type formType)
-    {
-      var form = CreateForm(formType);
+    if (formObj is Type navigationType)
+      return CreateNavigationWrapper(chat, navigationType);
 
-      return new FormWrapper(form, history, _localizer, form.IgnoreHistory);
-    }
-
-    if (formObj is BackForm backFormAction && backFormAction(history) is { } backForm)
+    if (formObj is BackForm backFormAction && await backFormAction(history) is { } backForm)
       return new FormWrapper(backForm, history, _localizer, true);
 
     return null;
+  }
+
+  /// <summary>Resolves a form for navigation: fresh DI scope, pushed onto the history unless it ignores it.</summary>
+  private FormWrapper CreateNavigationWrapper(Chat chat, Type formType)
+  {
+    var form = CreateForm(formType);
+
+    return new FormWrapper(form, GetHistory(chat), _localizer, form.IgnoreHistory);
   }
 
   private object? TryGet(string key) => _forms.TryGetValue(key, out var obj) ? obj : null;
@@ -116,19 +120,24 @@ internal sealed class FormCollection : IFormRetriever
   }
 
   /// <summary>
-  /// Pops the current form and returns the previous one. Completed stateful forms carry
-  /// no live conversation to return to, so they are skipped; an exhausted history falls
-  /// back to the start form.
+  /// Pops the current form and returns the previous one. A form leaving the history
+  /// loses its DI scope with it. Completed stateful forms carry no live conversation to
+  /// return to, so they are skipped; a waiting stateful one is <see cref="IStatefulForm.Reset"/>
+  /// and re-entered; an exhausted history falls back to the start form.
   /// </summary>
-  private IForm? BackFormAction(ConcurrentStack<IForm> history)
+  private async Task<IForm?> BackFormAction(ConcurrentStack<IForm> history)
   {
     if (history.IsEmpty)
       return TryGetStartForm();
 
     IForm? form = null;
 
-    while (history.TryPop(out _))
+    while (history.TryPop(out var popped))
     {
+      // the popped form leaves the history - its owned DI scope goes with it
+      if (popped is IAsyncDisposable disposable)
+        await disposable.DisposeAsync();
+
       form = history.TryGetLastForm();
 
       switch (form)

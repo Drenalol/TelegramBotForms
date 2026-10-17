@@ -16,6 +16,7 @@ builder.Services.AddSingleton<ITelegramTextLocalizer>(sp => sp.GetRequiredServic
 builder.Services.AddSingleton<ChatLanguageStore>();
 builder.Services.AddSingleton<IChatLanguageResolver>(sp => sp.GetRequiredService<ChatLanguageStore>());
 builder.Services.AddSingleton<ProfileStore>();
+builder.Services.AddSingleton<ConsentStore>();
 builder.Services.AddSingleton<ProductCatalog>();
 
 var bot = builder.Services.AddTelegramBotForms(options =>

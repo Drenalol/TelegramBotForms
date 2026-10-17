@@ -60,6 +60,48 @@ internal sealed class MenuStub : FormBase
     Task.FromResult(context.Reply("menu"));
 }
 
+/// <summary>A root form that clears the history on navigation but (unlike StartForm) is pushed onto it.</summary>
+internal sealed class RootClearStub : FormBase
+{
+  public override bool ClearHistoryOnNavigate => true;
+
+  public override async Task<MessageContext> RenderAsync(MessageContext context, CancellationToken cancellationToken)
+  {
+    // touches the owned DI scope: renders as an error reply once the scope is disposed
+    var language = await GetLanguageAsync(context.Chat, cancellationToken);
+
+    return context.Reply($"root:{language}");
+  }
+}
+
+/// <summary>Tracks its instances and whether the DI scope they own is still alive.</summary>
+internal sealed class ProbeStub : FormBase
+{
+  public static readonly List<ProbeStub> Created = [];
+
+  public ProbeStub() => Created.Add(this);
+
+  public bool ScopeAlive
+  {
+    get
+    {
+      try
+      {
+        _ = Services.GetRequiredService<Microsoft.Extensions.DependencyInjection.IServiceScopeFactory>();
+
+        return true;
+      }
+      catch (ObjectDisposedException)
+      {
+        return false;
+      }
+    }
+  }
+
+  public override Task<MessageContext> RenderAsync(MessageContext context, CancellationToken cancellationToken) =>
+    Task.FromResult(context.Reply("probe"));
+}
+
 internal sealed class DetailStub : FormBase
 {
   public override Task<MessageContext> RenderAsync(MessageContext context, CancellationToken cancellationToken) =>

@@ -28,7 +28,9 @@ internal sealed class FormWrapper : FormBase
     if (_wrapped.ClearHistoryOnNavigate && !_history.IsEmpty)
     {
       foreach (var form in _history)
-        if (form is IAsyncDisposable disposable)
+        // the wrapped form can itself sit in the history (re-entered via "Back"): it is
+        // the navigation destination and must never be disposed by its own clear
+        if (form is IAsyncDisposable disposable && !ReferenceEquals(form, _wrapped))
           await disposable.DisposeAsync();
 
       _history.Clear();

@@ -14,6 +14,8 @@ public class RoutingTests
     _router = TestBot.Router(configurator => configurator
       .RegisterStartForm<StartStub>()
       .RegisterFormWithKey<MenuStub>("Menu")
+      .RegisterFormWithKey<RootClearStub>("Root")
+      .RegisterFormWithKey<ProbeStub>("Probe")
       .RegisterFormWithKey<DetailStub>("Detail")
       .RegisterFormWithKey<NoHistoryStub>("NoHistory")
       .RegisterFormWithKey<BoomStub>("Boom")
@@ -141,6 +143,41 @@ public class RoutingTests
     // so "Back" finds nothing to return to and lands on start
     var back = await _router.RenderAsync(chat, "Back");
     Assert.That(back!.ReplyText, Is.EqualTo("start"));
+  }
+
+  [Test]
+  public async Task Back_Reenters_A_ClearHistory_Form_Without_Disposing_It()
+  {
+    var chat = TestBot.Chat();
+
+    await _router.RenderAsync(chat, "Menu");
+
+    var root = await _router.RenderAsync(chat, "Root");
+    Assert.That(root!.ReplyText, Is.EqualTo("root:en"));
+
+    await _router.RenderAsync(chat, "Menu");
+
+    // popping the top Menu reveals the Root form itself in the history: re-entering it
+    // must not let its own clear-on-navigate dispose its DI scope
+    var back = await _router.RenderAsync(chat, "Back");
+
+    Assert.That(back!.Exception, Is.Null);
+    Assert.That(back.ReplyText, Is.EqualTo("root:en"));
+  }
+
+  [Test]
+  public async Task Back_Disposes_The_DI_Scope_Of_The_Popped_Form()
+  {
+    ProbeStub.Created.Clear();
+    var chat = TestBot.Chat();
+
+    await _router.RenderAsync(chat, "Menu");
+    await _router.RenderAsync(chat, "Probe");
+
+    var back = await _router.RenderAsync(chat, "Back");
+
+    Assert.That(back!.ReplyText, Is.EqualTo("menu"));
+    Assert.That(ProbeStub.Created.Single().ScopeAlive, Is.False);
   }
 
   [Test]
