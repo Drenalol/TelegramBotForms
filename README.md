@@ -32,6 +32,9 @@ with a working "Back", browsers come with **pagination and search** out of the b
 - **Deep links** — `t.me/<bot>?start=<param>` routes to your start form with the parameter.
 - **Inline-button friendly** — callback taps are acknowledged and replayed as routing text,
   so inline keyboards navigate exactly like reply-keyboard taps.
+- **Shared location & contact** — reply-keyboard buttons requesting a location or a contact
+  arrive at the waiting form as the structured `context.Location` / `context.Contact` plus
+  their readable text encoding (`"55.7558,37.6173"` / the phone number).
 - **Utilities** — curated `TelegramTimeZones` quick-pick list, `KeyboardCache`,
   `MessageContext` fluent replies, per-form render timeouts.
 
@@ -49,7 +52,8 @@ Telegram ──long polling──► TelegramBotBus.Income ──► IFormRetrie
                                    TelegramBotBus.Outcome ──► SendMessage ──► Telegram
 ```
 
-- `TelegramBotStartup` (a hosted service) polls and feeds `Income`;
+- `TelegramBotStartup` (a hosted service) polls and feeds `Income`; shared locations and
+  contacts enter the pipeline as their text encoding plus the structured payload;
 - the router resolves the incoming text to a form: registered commands win, then
   registered keyboard keys, then the stateful form atop the chat's history;
 - the rendered `MessageContext` goes to `Outcome` and is sent back to the chat.
@@ -167,7 +171,41 @@ public sealed class ProfileForm(ProfileStore store) : ExtendedFormBase<ProfileSt
 
 `NavigationFormBase<TState>` is the keyboard-driven flavour: `AddRow(text, state)` maps
 button presses to states, `BuildKeyboard()` renders them, `AddFormRenderOn<TForm>(state)`
-navigates to another form.
+navigates to another form. Input the keyboard does not register re-shows the current
+state (`ReenterOnUnknownText`) instead of erroring — `PagedFormBase` overrides the hook
+to filter the list.
+
+## Location and contact
+
+A reply-keyboard button with `RequestLocation` / `RequestContact` makes Telegram send
+the payload instead of the button text. Such a message reaches the free-input form
+waiting in the history from both sides: the structured `context.Location` /
+`context.Contact` and a readable text encoding of the payload (`"55.7558,37.6173"`,
+the phone number) in `context.Text` — encodings never collide with registered keys,
+and text-only flows keep working untouched. A funnel that prefers the structured
+payload and falls back to text:
+
+```csharp
+private Task<MessageContext> WaitAsync(MessageContext context, CancellationToken ct)
+{
+  var rows = new[]
+  {
+    new[] { new KeyboardButton("📍 My location") { RequestLocation = true } },
+    new[] { new KeyboardButton("👤 My contact") { RequestContact = true } },
+  };
+
+  if (context.Location is { } location)
+    return Task.FromResult(context.Reply($"Got {location.Latitude}, {location.Longitude}", rows));
+
+  if (context.Contact is { } contact)
+    return Task.FromResult(context.Reply($"Got {contact.FirstName} {contact.PhoneNumber}", rows));
+
+  return Task.FromResult(context.Reply($"Got text: {context.Text}", rows));
+}
+```
+
+Everything else (photos, stickers, ...) is not consumed; the acceptance switch lives in
+one method of `TelegramBotProvider`, so new message types are a single branch there.
 
 ## Pagination
 
@@ -276,6 +314,8 @@ which reads the parameter from `context.Text`.
   keyboard per form type.
 - `MessageContext` — `Reply(text, keyboardRows)`, `Reply(text, replyMarkup: ...)`,
   `Forward(newRoutingText)`; parse mode, entities and reply-to are carried to the sender.
+  `Location` / `Contact` carry the structured payload of a shared location / contact
+  (null for any other incoming message).
 - Per-form render timeout via `IForm.TimeoutSec` (default 30 s).
 
 ## Example bot
@@ -283,8 +323,8 @@ which reads the parameter from `context.Text`.
 [`telegram-bot-forms-example/`](telegram-bot-forms-example) demonstrates every feature end to end: consent-gated start
 with a deep-link parameter, a ru/en main menu, a paginated + searchable products list
 with a custom action row, a detail page reached by navigation, an input wizard, a
-per-chat language switcher, a time zone picker, a `/help` command and a code-owned
-bot profile.
+location/contact/text funnel, a per-chat language switcher, a time zone picker, a
+`/help` command and a code-owned bot profile.
 
 Put a bot token (create one with [@BotFather](https://t.me/BotFather)) into the gitignored
 `appsettings.Local.json` (next to the committed placeholder `appsettings.json`) and run:

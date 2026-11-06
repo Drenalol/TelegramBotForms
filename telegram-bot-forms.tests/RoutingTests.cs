@@ -21,6 +21,7 @@ public class RoutingTests
       .RegisterFormWithKey<NoHistoryStub>("NoHistory")
       .RegisterFormWithKey<BoomStub>("Boom")
       .RegisterFormWithKey<WizardStub>("Wizard")
+      .RegisterFormWithKey<NavStub>("Nav")
       .RegisterCommand<HelpStub>("help"));
 
   [Test]
@@ -80,6 +81,35 @@ public class RoutingTests
     var context = await _router.RenderAsync(TestBot.Chat(), "free input");
 
     Assert.That(context!.ReplyText, Is.EqualTo("wizard-saved:free input"));
+  }
+
+  [Test]
+  public async Task Encoded_Location_Text_Reaches_The_Waiting_Stateful_Form()
+  {
+    await _router.RenderAsync(TestBot.Chat(), "Wizard");
+    await _router.RenderAsync(TestBot.Chat(), "edit");
+
+    // the text a shared location enters the pipeline with (see TelegramBotProvider)
+    const string locationText = "55.7558,37.6173";
+
+    var context = await _router.RenderAsync(TestBot.Chat(), locationText);
+
+    Assert.That(context!.ReplyText, Is.EqualTo($"wizard-saved:{locationText}"));
+  }
+
+  [Test]
+  public async Task Unknown_Text_Re_Renders_The_Waiting_Navigation_Form()
+  {
+    var chat = TestBot.Chat();
+
+    await _router.RenderAsync(chat, "Nav");
+    await _router.RenderAsync(chat, "pick");
+
+    // stray input over a waiting picker shows the picker again, not the error reply
+    var context = await _router.RenderAsync(chat, "55.7558,37.6173");
+
+    Assert.That(context!.Exception, Is.Null);
+    Assert.That(context.ReplyText, Is.EqualTo("nav-show"));
   }
 
   [Test]

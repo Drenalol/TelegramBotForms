@@ -66,16 +66,18 @@ public sealed class ExampleTexts : ITelegramTextLocalizer
   public static string ProfileButton(string language) => language == Russian ? "Профиль" : "Profile";
   public static string LanguageButton(string language) => language == Russian ? "Язык" : "Language";
   public static string TimeZoneButton(string language) => language == Russian ? "Часовой пояс" : "Time zone";
+  public static string PlaceButton(string language) => language == Russian ? "Местоположение" : "Location";
 
   public static bool IsMainButton(string text) =>
     LanguageCodes.Any(language =>
       ProductsButton(language) == text ||
       ProfileButton(language) == text ||
       LanguageButton(language) == text ||
-      TimeZoneButton(language) == text);
+      TimeZoneButton(language) == text ||
+      PlaceButton(language) == text);
 
   public static ReplyKeyboardMarkup MainKeyboard(string language) =>
-    new([[new KeyboardButton(ProductsButton(language))], [new KeyboardButton(ProfileButton(language))], [new KeyboardButton(LanguageButton(language))], [new KeyboardButton(TimeZoneButton(language))]])
+    new([[new KeyboardButton(ProductsButton(language))], [new KeyboardButton(ProfileButton(language))], [new KeyboardButton(LanguageButton(language))], [new KeyboardButton(TimeZoneButton(language))], [new KeyboardButton(PlaceButton(language))]])
     {
       ResizeKeyboard = true,
       OneTimeKeyboard = false,
@@ -122,6 +124,27 @@ public sealed class ExampleTexts : ITelegramTextLocalizer
   public static string TimeZoneSaved(string language, string id) => language == Russian
     ? $"Часовой пояс сохранён: {id}"
     : $"Time zone saved: {id}";
+
+  // --- place funnel (text / shared location / shared contact) ----------------------
+
+  public static string PlaceTitle(string language) => language == Russian
+    ? "Пришлите, где вы: напишите город текстом, нажмите «📍 Моя геолокация» или «👤 Мой контакт»."
+    : "Tell me where you are: type a city as text, press \"📍 My location\" or \"👤 My contact\".";
+
+  public static string PlaceLocationButton(string language) => language == Russian ? "📍 Моя геолокация" : "📍 My location";
+  public static string PlaceContactButton(string language) => language == Russian ? "👤 Мой контакт" : "👤 My contact";
+
+  public static string PlaceGotLocation(string language, double latitude, double longitude) => language == Russian
+    ? $"Геолокация получена: {latitude:0.####}, {longitude:0.####}\nЖду ещё - текст, геолокацию или контакт («Назад» в меню)."
+    : $"Location received: {latitude:0.####}, {longitude:0.####}\nWaiting for more - text, a location or a contact (\"Back\" returns to the menu).";
+
+  public static string PlaceGotContact(string language, string phoneNumber, string firstName) => language == Russian
+    ? $"Контакт получен: {firstName} {phoneNumber}\nЖду ещё - текст, геолокацию или контакт («Назад» в меню)."
+    : $"Contact received: {firstName} {phoneNumber}\nWaiting for more - text, a location or a contact (\"Back\" returns to the menu).";
+
+  public static string PlaceGotText(string language, string text) => language == Russian
+    ? $"Текст получен: {text}\nЖду ещё - текст, геолокацию или контакт («Назад» в меню)."
+    : $"Text received: {text}\nWaiting for more - text, a location or a contact (\"Back\" returns to the menu).";
 
   public static string Help(string language) => language == Russian
     ? "Команды:\n/help - эта справка\n/language - выбор языка\n/start - главное меню\n\nСовет: напишите любой текст, когда открыт список товаров, - он станет поисковым запросом."

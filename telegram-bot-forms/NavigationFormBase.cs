@@ -53,11 +53,25 @@ public abstract class NavigationFormBase<TState> : ExtendedFormBase<TState> wher
   protected override IRender GetRender(MessageContext context)
   {
     if (!_buttons.TryGetValue(context.Text, out var retrievedState))
-      throw new InvalidOperationException($"State not registered for text: {context.Text}");
+      return ReenterOnUnknownText(context);
 
     if (!Renders.TryGetValue(retrievedState, out var retrievedRender))
       throw new InvalidOperationException($"No render action found by state: {retrievedState}");
 
     return retrievedRender;
+  }
+
+  /// <summary>
+  /// What renders input the keyboard does not register (stray free text, an encoded
+  /// location or contact): by default the waiting form re-shows its current state
+  /// instead of replying with the unhandled-error text. Override to consume unknown
+  /// input differently, e.g. as a list search.
+  /// </summary>
+  protected virtual IRender ReenterOnUnknownText(MessageContext context)
+  {
+    if (State is { } current && Renders.TryGetValue(current, out var currentRender))
+      return currentRender;
+
+    throw new InvalidOperationException($"State not registered for text: {context.Text}");
   }
 }

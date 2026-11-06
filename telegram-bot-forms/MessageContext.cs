@@ -9,6 +9,12 @@ public interface IInputContext
 {
   public Chat Chat { get; }
   public string Text { get; }
+
+  /// <summary>The shared location of a location message, null for any other incoming message.</summary>
+  public Location? Location { get; }
+
+  /// <summary>The shared contact of a contact message, null for any other incoming message.</summary>
+  public Contact? Contact { get; }
 }
 
 /// <summary>The outgoing side of a conversation turn: what the bot answers.</summary>
@@ -38,6 +44,12 @@ public class MessageContext : IInputContext, IOutputContext, IErrorContext
   public Chat Chat { get; }
   public string Text { get; private set; }
 
+  /// <inheritdoc cref="IInputContext.Location"/>
+  public Location? Location { get; }
+
+  /// <inheritdoc cref="IInputContext.Contact"/>
+  public Contact? Contact { get; }
+
   public string? ReplyText { get; private set; }
   public ParseMode? ParseMode { get; private set; }
   public IEnumerable<MessageEntity>? Entities { get; private set; }
@@ -45,10 +57,17 @@ public class MessageContext : IInputContext, IOutputContext, IErrorContext
   public ReplyMarkup? ReplyMarkup { get; private set; }
   public Exception? Exception { get; private set; }
 
-  public MessageContext(Chat chat, string argument)
+  /// <param name="chat">The chat the turn came from.</param>
+  /// <param name="argument">The routing text; for location and contact messages the text
+  /// encoding of the shared payload ("lat,lon" / the phone number), never empty.</param>
+  /// <param name="location">The structured payload of a location message, null otherwise.</param>
+  /// <param name="contact">The structured payload of a contact message, null otherwise.</param>
+  public MessageContext(Chat chat, string argument, Location? location = null, Contact? contact = null)
   {
     Chat = chat;
     Text = argument;
+    Location = location;
+    Contact = contact;
   }
 
   /// <summary>Replies with text and a reply keyboard built from the given rows.</summary>

@@ -101,24 +101,14 @@ public abstract class PagedFormBase<TItem> : NavigationFormBase<PagedFormState> 
     return RenderListAsync(context, cancellationToken);
   }
 
-  protected override IRender GetRender(MessageContext context)
-  {
-    if (_actions.TryGetValue(context.Text, out var action))
-      return CustomRender(action);
+  protected override IRender GetRender(MessageContext context) =>
+    _actions.TryGetValue(context.Text, out var action) ? CustomRender(action) : base.GetRender(context);
 
-    try
-    {
-      return base.GetRender(context);
-    }
-    catch (InvalidOperationException)
-    {
-      // Any unregistered text (no command, no button) filters the list
-      if (!SupportsSearch)
-        throw;
-
-      return CustomRender(SearchAsync);
-    }
-  }
+  // Any unregistered text (no command, no button, no row) filters the list; a list
+  // without a search keeps the base behaviour.
+  protected override IRender ReenterOnUnknownText(MessageContext context) => SupportsSearch
+    ? CustomRender(SearchAsync)
+    : base.ReenterOnUnknownText(context);
 
   private Task<MessageContext> PreviousAsync(MessageContext context, CancellationToken cancellationToken)
   {

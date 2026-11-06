@@ -203,6 +203,32 @@ internal sealed class WizardStub : ExtendedFormBase<WizardState>
   }
 }
 
+internal enum NavState
+{
+  Show,
+}
+
+/// <summary>A keyboard-driven picker: registered presses and unknown input (free text, an encoded location) must both render the current state.</summary>
+internal sealed class NavStub : NavigationFormBase<NavState>
+{
+  public NavStub()
+  {
+    AddRenderOn(NavState.Show, string.Empty, ShowAsync);
+
+    _buttons["pick"] = NavState.Show;
+  }
+
+  protected override Task<MessageContext> RenderInitAsync(MessageContext context, CancellationToken cancellationToken) =>
+    Task.FromResult(context.Reply("nav-init"));
+
+  private Task<MessageContext> ShowAsync(MessageContext context, CancellationToken cancellationToken)
+  {
+    State = NavState.Show;
+
+    return Task.FromResult(context.Reply("nav-show"));
+  }
+}
+
 internal sealed record TestItem(int Id, string Name);
 
 /// <summary>A paged browser over a fixed in-memory list (two duplicate names on the first page).</summary>

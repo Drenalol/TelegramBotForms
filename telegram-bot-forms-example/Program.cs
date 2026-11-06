@@ -66,6 +66,7 @@ foreach (var language in ExampleTexts.LanguageCodes)
     .RegisterFormWithKey<ProfileForm>(ExampleTexts.ProfileButton(language))
     .RegisterFormWithKey<LanguageForm>(ExampleTexts.LanguageButton(language))
     .RegisterFormWithKey<TimeZoneForm>(ExampleTexts.TimeZoneButton(language))
+    .RegisterFormWithKey<PlaceForm>(ExampleTexts.PlaceButton(language))
     // the consent button replays its text, so every language variant routes the start form
     .RegisterFormWithKey<StartForm>(ExampleTexts.ConsentButton(language));
 }
