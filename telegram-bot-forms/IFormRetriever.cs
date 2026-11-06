@@ -10,5 +10,5 @@ public interface IFormRetriever
 {
   public Task<IForm?> GetAsync(Chat chat, string key);
 
-  internal IForm Get(Chat chat, Type formType);
+  internal ValueTask<IForm> GetFormAsync(Chat chat, Type formType);
 }

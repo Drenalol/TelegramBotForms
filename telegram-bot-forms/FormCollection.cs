@@ -41,7 +41,70 @@ internal sealed class FormCollection : IFormRetriever
     return TryGetCommand(chat, key) ?? await GetByTargetAsync(chat, TryGet(lookupKey));
   }
 
-  IForm IFormRetriever.Get(Chat chat, Type formType) => CreateNavigationWrapper(chat, formType);
+  async ValueTask<IForm> IFormRetriever.GetFormAsync(Chat chat, Type formType)
+  {
+    var history = GetHistory(chat);
+
+    // NavigateToAsync from inside a form follows the same rule as a keyboard press:
+    // an already open target is rewound to, never stacked as a duplicate
+    if (await RewindToAsync(history, formType) is { } target)
+      return new FormWrapper(target, history, _localizer, true);
+
+    return CreateNavigationWrapper(chat, formType);
+  }
+
+  /// <summary>
+  /// Navigation inside the existing history: when the target form is already open in
+  /// the chat (a list sitting under a card), the forms above it are popped and disposed
+  /// and the waiting instance is <see cref="IStatefulForm.Reset"/> and re-rendered in
+  /// place — instead of stacking a second copy of the screen, which would make "Back"
+  /// paint the same form once per copy. A completed stateful form carries no live
+  /// conversation to re-enter, so it leaves the history too and the caller pushes a
+  /// fresh instance.
+  /// </summary>
+  private static async ValueTask<IForm?> RewindToAsync(ConcurrentStack<IForm> history, Type formType)
+  {
+    IForm? target = null;
+
+    foreach (var form in history)
+      if (form.GetType() == formType)
+      {
+        target = form;
+        break;
+      }
+
+    if (target is null)
+      return null;
+
+    var completed = target is IStatefulForm { IsCompleted: true };
+
+    while (history.TryPeek(out var top) && !ReferenceEquals(top, target))
+      await PopAndDisposeAsync(history);
+
+    if (completed)
+    {
+      // nothing live to rewind to: the completed instance leaves the history and the
+      // caller renders a fresh one on top of what remains
+      await PopAndDisposeAsync(history);
+
+      return null;
+    }
+
+    if (target is IStatefulForm statefulForm)
+      statefulForm.Reset();
+
+    return target;
+  }
+
+  private static async ValueTask PopAndDisposeAsync(ConcurrentStack<IForm> history)
+  {
+    if (!history.TryPop(out var popped))
+      return;
+
+    // a form leaving the history loses its DI scope with it
+    if (popped is IAsyncDisposable disposable)
+      await disposable.DisposeAsync();
+  }
 
   private static string? FirstToken(string key) =>
     key.Split(' ', StringSplitOptions.RemoveEmptyEntries)
@@ -76,20 +139,14 @@ internal sealed class FormCollection : IFormRetriever
 
     if (formObj is Type navigationType)
     {
-      // Re-tapping the button of the form that is already open (double taps, retries
-      // after a lost reply) must not stack a second identical screen - "Back" would
-      // paint the same form twice. The waiting instance is Reset (fresh state, so a
-      // browser like PagedFormBase returns to page one with the button's own text
-      // never reaching its search) and re-rendered in place instead.
-      if (history.TryGetLastForm() is { } top
-          && top.GetType() == navigationType
-          && top is not IStatefulForm { IsCompleted: true })
-      {
-        if (top is IStatefulForm topStateful)
-          topStateful.Reset();
-
-        return new FormWrapper(top, history, _localizer, true);
-      }
+      // Tapping the button of a form that is already open somewhere in the history
+      // (double taps, retries after a lost reply, a card navigating back to its list)
+      // must not stack a second identical screen - "Back" would paint the same form
+      // once per copy. Rewind to the waiting instance instead: everything above it
+      // leaves the history and the instance is Reset (a browser like PagedFormBase
+      // returns to page one) and re-rendered in place.
+      if (await RewindToAsync(history, navigationType) is { } target)
+        return new FormWrapper(target, history, _localizer, true);
 
       return CreateNavigationWrapper(chat, navigationType);
     }

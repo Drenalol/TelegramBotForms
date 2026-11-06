@@ -58,10 +58,10 @@ public abstract class FormBase : IForm, IAsyncDisposable
     NavigateToAsync(typeof(TForm), context, cancellationToken);
 
   /// <summary>Resolves <paramref name="formType"/> from DI in a new scope and renders it in place.</summary>
-  protected Task<MessageContext> NavigateToAsync(Type formType, MessageContext context, CancellationToken cancellationToken) =>
-    Services
+  protected async Task<MessageContext> NavigateToAsync(Type formType, MessageContext context, CancellationToken cancellationToken) =>
+    await (await Services
       .GetRequiredService<IFormRetriever>()
-      .Get(context.Chat, formType)
+      .GetFormAsync(context.Chat, formType))
       .RenderAsync(context, cancellationToken);
 
   public async ValueTask DisposeAsync()

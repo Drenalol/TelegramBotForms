@@ -22,6 +22,7 @@ public class RoutingTests
       .RegisterFormWithKey<BoomStub>("Boom")
       .RegisterFormWithKey<WizardStub>("Wizard")
       .RegisterFormWithKey<NavStub>("Nav")
+      .RegisterFormWithKey<BackToMenuStub>("BackToMenu")
       .RegisterCommand<HelpStub>("help"));
 
   [Test]
@@ -123,6 +124,57 @@ public class RoutingTests
     var context = await _router.RenderAsync(chat, "Back");
 
     Assert.That(context!.ReplyText, Is.EqualTo("menu"));
+  }
+
+  [Test]
+  public async Task Reopening_An_Open_Form_Rewinds_The_History_Instead_Of_Stacking()
+  {
+    var chat = TestBot.Chat();
+
+    await _router.RenderAsync(chat, "Menu");
+    await _router.RenderAsync(chat, "Detail");
+
+    // the menu is already open below: rewind to it, Detail leaves the history
+    await _router.RenderAsync(chat, "Menu");
+
+    // stacked copies would make "Back" paint the menu (or the detail) once per copy
+    var back = await _router.RenderAsync(chat, "Back");
+    Assert.That(back!.ReplyText, Is.EqualTo("start"));
+  }
+
+  [Test]
+  public async Task Rewind_Disposes_The_Forms_Above_The_Target()
+  {
+    ProbeStub.Created.Clear();
+    var chat = TestBot.Chat();
+
+    await _router.RenderAsync(chat, "Menu");
+    await _router.RenderAsync(chat, "Probe");
+
+    // rewinding past Probe drops it from the history - its DI scope goes with it
+    var context = await _router.RenderAsync(chat, "Menu");
+
+    Assert.That(context!.ReplyText, Is.EqualTo("menu"));
+    Assert.That(ProbeStub.Created.Single().ScopeAlive, Is.False);
+  }
+
+  [Test]
+  public async Task Navigating_To_An_Open_Form_Rewinds_Instead_Of_Stacking()
+  {
+    var chat = TestBot.Chat();
+
+    await _router.RenderAsync(chat, "Menu");
+    await _router.RenderAsync(chat, "Detail");
+
+    // a form navigating to an open target follows the same rewind rule as a key press
+    var navigated = await _router.RenderAsync(chat, "BackToMenu");
+    Assert.That(navigated!.ReplyText, Is.EqualTo("menu"));
+
+    var back = await _router.RenderAsync(chat, "Back");
+    Assert.That(back!.ReplyText, Is.EqualTo("menu"));
+
+    var backAgain = await _router.RenderAsync(chat, "Back");
+    Assert.That(backAgain!.ReplyText, Is.EqualTo("start"));
   }
 
   [Test]

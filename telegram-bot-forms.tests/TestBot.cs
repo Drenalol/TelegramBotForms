@@ -108,6 +108,13 @@ internal sealed class DetailStub : FormBase
     Task.FromResult(context.Reply("detail"));
 }
 
+/// <summary>Navigates to the menu form right away (a detail card navigating back to its list).</summary>
+internal sealed class BackToMenuStub : FormBase
+{
+  public override Task<MessageContext> RenderAsync(MessageContext context, CancellationToken cancellationToken) =>
+    NavigateToAsync<MenuStub>(context, cancellationToken);
+}
+
 /// <summary>Root-form pattern (like StartForm): never pushed onto the history, clears it on entry.</summary>
 internal sealed class NoHistoryStub : FormBase
 {
