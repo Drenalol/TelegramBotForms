@@ -10,7 +10,7 @@
         <PackageId>Drenalol.Telegram.Bot.Forms</PackageId>
         <Title>Drenalol.Telegram.Bot.Forms</Title>
         <Authors>Bogdan Yanysh</Authors>
-        <Version>1.1.0</Version>
+        <Version>1.2.0</Version>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
         <PackageTags>Telegram;Bot;Forms;Navigation;Dialog;Pagination;Telegram.Bot</PackageTags>
         <Description>Chat-first Telegram bot framework for Telegram.Bot: DI-scoped forms, per-chat navigation history with a Back action, paginated list forms, location and contact sharing, free-text commands, per-chat localization and BotFather profile sync.</Description>
@@ -36,6 +36,7 @@
 
     <ItemGroup>
         <PackageReference Include="Telegram.Bot" Version="22.10.2.1" />
+        <PackageReference Include="Microsoft.Extensions.Caching.Abstractions" Version="10.0.12" />
         <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.10" />
         <PackageReference Include="Microsoft.Extensions.Options" Version="10.0.12" />
         <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.12" />
@@ -44,6 +45,7 @@
     </ItemGroup>
 
     <ItemGroup Condition=" '$(TargetFramework)' == 'netstandard2.1' ">
+        <PackageReference Include="System.Text.Json" Version="10.0.12" />
         <PackageReference Include="System.Threading.Channels" Version="9.0.0" />
     </ItemGroup>
 

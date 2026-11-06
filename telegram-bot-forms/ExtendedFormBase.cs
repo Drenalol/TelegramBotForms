@@ -1,4 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 
 namespace Drenalol.Telegram.Bot.Forms;
 
@@ -40,6 +42,67 @@ public abstract class ExtendedFormBase<TState> : FormBase, IStatefulForm where T
   private readonly IDictionary<TState, IRender> _renders = new Dictionary<TState, IRender>();
 
   public void Reset() => _isInited = 0;
+
+  /// <summary>
+  /// Writes the conversation position into the persistence envelope: the current
+  /// state (by enum name), the completion and init flags, and - through
+  /// <see cref="FormBase.CaptureContext"/> - whatever data the form itself declares.
+  /// </summary>
+  protected internal override string? CaptureState()
+  {
+    var envelope = new JsonObject
+    {
+      ["state"] = State?.ToString(),
+      ["completed"] = IsCompleted,
+      ["inited"] = Volatile.Read(ref _isInited) == 1,
+    };
+
+    CaptureFields(envelope);
+
+    envelope["data"] = JsonSerializer.SerializeToNode(CaptureContext());
+
+    return envelope.ToJsonString();
+  }
+
+  /// <summary>
+  /// Re-applies a persisted position to a fresh instance: a renamed state value or a
+  /// context that no longer deserializes throws, and the entry is skipped by the
+  /// restore rather than corrupting the history.
+  /// </summary>
+  protected internal override void RestoreState(string? state)
+  {
+    if (string.IsNullOrEmpty(state))
+      return;
+
+    var envelope = JsonNode.Parse(state)!.AsObject();
+
+    if (envelope["state"] is JsonValue stateValue && stateValue.TryGetValue<string>(out var stateName))
+      State = (TState)Enum.Parse(typeof(TState), stateName, ignoreCase: true);
+
+    IsCompleted = ReadBool(envelope, "completed");
+
+    ApplyFields(envelope);
+
+    if (envelope["data"] is { } data && data.GetValueKind() != JsonValueKind.Null)
+      RestoreContext(data);
+
+    // a form restored mid-conversation must not run its init render again
+    if (ReadBool(envelope, "inited"))
+      Interlocked.Exchange(ref _isInited, 1);
+  }
+
+  /// <summary>Adds this form's own framework fields to the persistence envelope.</summary>
+  protected virtual void CaptureFields(JsonObject envelope)
+  {
+  }
+
+  /// <summary>Re-applies the framework fields written by <see cref="CaptureFields"/>.</summary>
+  protected virtual void ApplyFields(JsonObject envelope)
+  {
+  }
+
+  private static bool ReadBool(JsonObject envelope, string name) =>
+    envelope[name] is JsonValue value && value.TryGetValue<bool>(out var flag) && flag;
 
   public override Task<MessageContext> RenderAsync(MessageContext context, CancellationToken cancellationToken)
   {

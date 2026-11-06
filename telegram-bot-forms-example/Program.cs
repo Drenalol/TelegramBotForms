@@ -82,6 +82,13 @@ bot.RegisterForm<ProductForm>();
 // free-text command: "help" or "/help"
 bot.RegisterCommand<HelpCommand>("help");
 
+// Optional chat-history persistence: "Back", wizard steps and paged lists survive a
+// restart. This keeps one JSON file per chat locally; for several replicas or a
+// centralized store use Redis instead:
+//   builder.Services.AddStackExchangeRedisCache(o => o.Configuration = "...");
+//   bot.UseDistributedHistory(o => o.TimeToLive = TimeSpan.FromDays(7));
+bot.UseFileHistory(history => history.Directory = Path.Combine(AppContext.BaseDirectory, "bot-history"));
+
 bot.Build();
 
 var host = builder.Build();

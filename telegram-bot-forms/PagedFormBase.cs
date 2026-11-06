@@ -1,3 +1,4 @@
+using System.Text.Json.Nodes;
 using Drenalol.Telegram.Bot.Forms.Localization;
 using Telegram.Bot.Types.ReplyMarkups;
 
@@ -37,6 +38,12 @@ public abstract class PagedFormBase<TItem> : NavigationFormBase<PagedFormState> 
   // the items live here until the next render rebuilds the map.
   private readonly Dictionary<string, TItem> _itemsByLabel = new(StringComparer.OrdinalIgnoreCase);
   private readonly Dictionary<string, RenderAction> _actions = new(StringComparer.OrdinalIgnoreCase);
+
+  // labels the last render showed; after a restart they arrive here from the snapshot,
+  // and a tap on one of them repaints the restored page instead of starting a search
+  private HashSet<string> _staleLabels = new(StringComparer.OrdinalIgnoreCase);
+  private string? _prevText;
+  private string? _nextText;
 
   private int _page = 1;
   private string? _search;
@@ -105,10 +112,69 @@ public abstract class PagedFormBase<TItem> : NavigationFormBase<PagedFormState> 
     _actions.TryGetValue(context.Text, out var action) ? CustomRender(action) : base.GetRender(context);
 
   // Any unregistered text (no command, no button, no row) filters the list; a list
-  // without a search keeps the base behaviour.
-  protected override IRender ReenterOnUnknownText(MessageContext context) => SupportsSearch
-    ? CustomRender(SearchAsync)
-    : base.ReenterOnUnknownText(context);
+  // without a search keeps the base behaviour. A label the restored snapshot remember
+  // (rendered before the restart) repaints the page instead: its item must be resolved
+  // from fresh data, not typed into the search box.
+  protected override IRender ReenterOnUnknownText(MessageContext context)
+  {
+    if (_staleLabels.Remove(context.Text))
+      return CustomRender(RenderCurrentPageAsync);
+
+    return SupportsSearch
+      ? CustomRender(SearchAsync)
+      : base.ReenterOnUnknownText(context);
+  }
+
+  /// <summary>
+  /// Persists the browser position: page, search, the localized navigation texts the
+  /// user is looking at, and the labels of the page (restored as stale so a tap on a
+  /// pre-restart button repaints instead of searching). Items themselves are not
+  /// serialized - they are reloaded from the source.
+  /// </summary>
+  protected override void CaptureFields(JsonObject envelope)
+  {
+    envelope["page"] = _page;
+    envelope["search"] = _search;
+    envelope["prev"] = _prevText;
+    envelope["next"] = _nextText;
+
+    var labels = new JsonArray();
+
+    foreach (var label in _itemsByLabel.Keys)
+      labels.Add(label);
+
+    foreach (var text in _actions.Keys)
+      labels.Add(text);
+
+    envelope["labels"] = labels;
+  }
+
+  protected override void ApplyFields(JsonObject envelope)
+  {
+    _page = envelope["page"] is JsonValue page && page.TryGetValue<int>(out var restoredPage) ? restoredPage : 1;
+    _search = ReadString(envelope, "search");
+    _prevText = ReadString(envelope, "prev");
+    _nextText = ReadString(envelope, "next");
+
+    // re-arm the navigation buttons the user sees: their localized texts route again
+    if (_prevText is { } prev)
+      _buttons[prev] = PagedFormState.Previous;
+
+    if (_nextText is { } next)
+      _buttons[next] = PagedFormState.Next;
+
+    var restoredLabels = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+    if (envelope["labels"] is JsonArray labels)
+      foreach (var node in labels)
+        if (node is JsonValue label && label.TryGetValue<string>(out var text))
+          restoredLabels.Add(text);
+
+    _staleLabels = restoredLabels;
+  }
+
+  private static string? ReadString(JsonObject envelope, string name) =>
+    envelope[name] is JsonValue value && value.TryGetValue<string>(out var text) ? text : null;
 
   private Task<MessageContext> PreviousAsync(MessageContext context, CancellationToken cancellationToken)
   {
@@ -164,6 +230,9 @@ public abstract class PagedFormBase<TItem> : NavigationFormBase<PagedFormState> 
     Rows.Clear();
     _buttons.Clear();
     _itemsByLabel.Clear();
+    _staleLabels.Clear();
+    _prevText = null;
+    _nextText = null;
 
     var used = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -183,11 +252,13 @@ public abstract class PagedFormBase<TItem> : NavigationFormBase<PagedFormState> 
     {
       var prev = Localizer.PreviousPage(language);
       _buttons[prev] = PagedFormState.Previous;
+      _prevText = prev;
 
       if (_page < totalPages)
       {
         var next = Localizer.NextPage(language);
         _buttons[next] = PagedFormState.Next;
+        _nextText = next;
 
         Rows.Add([new KeyboardButton(prev), new KeyboardButton(next)]);
       }
@@ -199,6 +270,7 @@ public abstract class PagedFormBase<TItem> : NavigationFormBase<PagedFormState> 
       // First page: no "back" to draw, so the "forward" button spans the row
       var next = Localizer.NextPage(language);
       _buttons[next] = PagedFormState.Next;
+      _nextText = next;
 
       Rows.Add([new KeyboardButton(next)]);
     }

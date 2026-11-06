@@ -15,3 +15,7 @@ packages/
 ## .NET user secrets and local overrides (never commit bot tokens)
 appsettings.Local.json
 appsettings.*.Local.json
+
+## chat-history files written by the example bot's file store
+bot-history/
+telegram-bot-forms-history/

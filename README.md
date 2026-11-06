@@ -14,6 +14,9 @@ with a working "Back", browsers come with **pagination and search** out of the b
   constructor injection for repositories, mediators, whatever your app uses.
 - **Navigation history** — a per-chat stack of visited forms; the "Back" button pops it,
   skips completed wizards, resets waiting ones and falls back to `/start`.
+- **Durable history (optional)** — the same stack, plus the state your forms choose to
+  capture, survives a restart: plug in a file store or any `IDistributedCache` (Redis),
+  and after the start every chat resumes where it left off.
 - **Stateful forms (wizards)** — `ExtendedFormBase<TState>`: named states, render actions,
   navigation between forms; a form waiting for free-text input receives the next message
   of that chat (input is not eaten by routing).
@@ -134,6 +137,66 @@ Pressing "Back" (any registered language variant of the localized `Back` text):
    return to;
 3. a waiting stateful form is `Reset()` and re-entered;
 4. an exhausted history falls back to the start form.
+
+## Durable history (optional)
+
+By default the history is in-memory and a restart empties it (the bot keeps answering,
+every chat just starts fresh). To make histories survive restarts, register a store —
+the router then restores a chat's stack lazily on its first message after the start and
+writes the position back after every settled turn:
+
+```csharp
+// one JSON file per chat under Directory (atomic writes, single instance):
+bot.UseFileHistory(history => history.Directory = "/var/lib/mybot/history");
+
+// ...or any IDistributedCache - Redis here, in-memory works too (great for tests):
+builder.Services.AddStackExchangeRedisCache(o => o.Configuration = "localhost:6379");
+bot.UseDistributedHistory(history => history.TimeToLive = TimeSpan.FromDays(7));
+```
+
+Both stores keep one JSON snapshot per chat (form type keys + state, top first) and
+expire it after `TimeToLive`, renewed on every turn. Registering your own
+`IChatHistoryStore` as a singleton works as well. A store is treated as a cache:
+every failure (disk full, Redis down) costs a chat its "Back" and never breaks message
+processing.
+
+**What is saved.** The navigation stack itself (so "Back" works again), the framework
+state of stateful forms (current wizard state, page and search of `PagedFormBase` —
+a restored browser re-arms its navigation buttons, and a tap on a pre-restart row just
+repaints the page) and the user data each form opts into:
+
+```csharp
+public sealed class PlaceForm : ExtendedFormBase<PlaceState>
+{
+  // declare what leaves the process, as a simple record of serializable values:
+  protected override object? CaptureContext() => new Draft(_address, _phone);
+
+  protected override void RestoreContext(JsonNode context)
+  {
+    var draft = context.Deserialize<Draft>();
+    (_address, _phone) = (draft.Address, draft.Phone);
+  }
+
+  private record Draft(string? Address, string? Phone);
+}
+```
+
+**Pain-free upgrade notes.**
+
+- A form that overrides nothing persists only its position: wizards restore to the
+  right state but without collected answers. Anything nontrivial needs `CaptureContext`.
+- Forms are identified by `Type.FullName` — renaming or removing a form type silently
+  drops that entry from stored snapshots (the rest of the history still restores).
+  Renaming a wizard state value or a `CaptureContext` field has the same effect.
+- Snapshots may hold personal data collected by your wizards: TTL limits the exposure,
+  the choice of disk/directory (permissions, encryption) and any GDPR retention beyond
+  the TTL is yours.
+- The file store is per-machine: run a single bot instance with it (long polling is
+  one-poller-per-token anyway) and use the distributed-cache store with replicas.
+- A restored wizard can resume onto data that changed while the bot slept; forms that
+  load entity state from repositories on render already behave correctly.
+- The in-memory histories of never-restored chats are not eagerly loaded — a snapshot
+  is read only when the chat writes again.
 
 ## Stateful forms (wizards)
 
