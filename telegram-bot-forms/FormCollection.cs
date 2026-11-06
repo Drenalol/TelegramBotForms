@@ -75,7 +75,24 @@ internal sealed class FormCollection : IFormRetriever
       return new FormWrapper(statefulForm, history, _localizer, true);
 
     if (formObj is Type navigationType)
+    {
+      // Re-tapping the button of the form that is already open (double taps, retries
+      // after a lost reply) must not stack a second identical screen - "Back" would
+      // paint the same form twice. The waiting instance is Reset (fresh state, so a
+      // browser like PagedFormBase returns to page one with the button's own text
+      // never reaching its search) and re-rendered in place instead.
+      if (history.TryGetLastForm() is { } top
+          && top.GetType() == navigationType
+          && top is not IStatefulForm { IsCompleted: true })
+      {
+        if (top is IStatefulForm topStateful)
+          topStateful.Reset();
+
+        return new FormWrapper(top, history, _localizer, true);
+      }
+
       return CreateNavigationWrapper(chat, navigationType);
+    }
 
     if (formObj is BackForm backFormAction && await backFormAction(history) is { } backForm)
       return new FormWrapper(backForm, history, _localizer, true);
