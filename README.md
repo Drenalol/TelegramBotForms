@@ -14,6 +14,10 @@ with a working "Back", browsers come with **pagination and search** out of the b
   constructor injection for repositories, mediators, whatever your app uses.
 - **Navigation history** — a per-chat stack of visited forms; the "Back" button pops it,
   skips completed wizards, resets waiting ones and falls back to `/start`.
+- **No duplicate screens** — re-tapping the key of a form that is already open, or
+  navigating to it, rewinds to the waiting instance instead of stacking a copy: the
+  forms above are popped and disposed, the target is reset and re-rendered in place,
+  so "Back" never paints the same screen twice.
 - **Durable history (optional)** — the same stack, plus the state your forms choose to
   capture, survives a restart: plug in a file store or any `IDistributedCache` (Redis),
   and after the start every chat resumes where it left off.
@@ -137,6 +141,13 @@ Pressing "Back" (any registered language variant of the localized `Back` text):
    return to;
 3. a waiting stateful form is `Reset()` and re-entered;
 4. an exhausted history falls back to the start form.
+
+Navigating to a form that is **already open** in the chat — by re-tapping its keyboard
+key or with `NavigateToAsync<TForm>` — does not stack a second copy either: the target
+is located anywhere in the history, everything above it is popped and disposed, and the
+waiting instance is `Reset()` and re-rendered in place (a completed stateful target
+leaves the history and a fresh instance is pushed). One screen in the stack means one
+"Back" press to leave it.
 
 ## Durable history (optional)
 
