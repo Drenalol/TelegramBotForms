@@ -91,6 +91,23 @@ public class TelegramBotStartup : BackgroundService
     if (context.Exception != null)
       _logger.LogError(context.Exception, "Chat {ChatId} render failed: {ErrorText}", context.Chat.Id, context.Exception.Message);
 
+    var ephemeral = TryGetEphemeralParameters(context);
+
+    // One turn sends one message, and a rich reply wins over the text one: a form that
+    // produced tables/details/in-message buttons has nothing for the text send to add.
+    if (context.RichReply is { } rich)
+    {
+      await _telegramBotClient.SendRichMessage(
+        new ChatId(context.Chat.Id),
+        rich,
+        replyParameters: GetReplyParameters(context),
+        replyMarkup: context.ReplyMarkup,
+        ephemeralMessageParameters: ephemeral
+      );
+
+      return;
+    }
+
     if (context.ReplyText == null)
       return;
 
@@ -98,12 +115,43 @@ public class TelegramBotStartup : BackgroundService
       new ChatId(context.Chat.Id),
       context.ReplyText,
       parseMode: context.ParseMode ?? default,
-      replyParameters: context.ReplyToMessageId.HasValue ? new ReplyParameters { MessageId = context.ReplyToMessageId.Value } : null,
+      replyParameters: GetReplyParameters(context),
       replyMarkup: context.ReplyMarkup,
       // bot answers are utility texts - a link card preview only eats the screen
       linkPreviewOptions: LinkPreviewOptions.Disabled,
-      entities: context.Entities?.ToList()
+      entities: context.Entities?.ToList(),
+      ephemeralMessageParameters: ephemeral
     );
+  }
+
+  private static ReplyParameters? GetReplyParameters(MessageContext context) =>
+    context.ReplyToMessageId.HasValue ? new ReplyParameters { MessageId = context.ReplyToMessageId.Value } : null;
+
+  /// <summary>
+  /// The ephemeral parameters of a reply, null when it is a regular message. An ephemeral
+  /// reply is addressed through the callback query it answers - naming a receiver user
+  /// would let a form write into somebody else's screen - so a turn that did not come
+  /// from a button tap cannot be ephemeral and degrades to a regular message, loudly.
+  /// </summary>
+  private EphemeralMessageParameters? TryGetEphemeralParameters(MessageContext context)
+  {
+    if (!context.EphemeralReply)
+      return null;
+
+    if (context.CallbackQueryId is not { } callbackQueryId)
+    {
+      _logger.LogWarning(
+        "Chat {ChatId} asked for an ephemeral reply to a turn that came from a written message, sending it as a regular one",
+        context.Chat.Id);
+
+      return null;
+    }
+
+    return new EphemeralMessageParameters
+    {
+      CallbackQueryId = callbackQueryId,
+      ReplaceCallbackQueryMessage = context.ReplaceCallbackQueryMessage,
+    };
   }
 
   public override Task StopAsync(CancellationToken cancellationToken)

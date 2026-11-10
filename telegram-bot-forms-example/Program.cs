@@ -24,6 +24,7 @@ builder.Services.AddSingleton<ProfileStore>();
 builder.Services.AddSingleton<ConsentStore>();
 builder.Services.AddSingleton<TimeZoneStore>();
 builder.Services.AddSingleton<ProductCatalog>();
+builder.Services.AddSingleton<WatchStore>();
 
 var bot = builder.Services.AddTelegramBotForms(options =>
 {
@@ -81,6 +82,11 @@ bot.RegisterForm<ProductForm>();
 
 // free-text command: "help" or "/help"
 bot.RegisterCommand<HelpCommand>("help");
+
+// the same command is what the watch button of the rich product card carries
+// ("watch 42"): a callback inside a message has to route on its own, and commands beat
+// keyboard keys and the form waiting in the chat's history
+bot.RegisterCommand<WatchCommand>("watch");
 
 // Optional chat-history persistence: "Back", wizard steps and paged lists survive a
 // restart. This keeps one JSON file per chat locally; for several replicas or a

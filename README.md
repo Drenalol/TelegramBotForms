@@ -39,6 +39,12 @@ with a working "Back", browsers come with **pagination and search** out of the b
 - **Deep links** — `t.me/<bot>?start=<param>` routes to your start form with the parameter.
 - **Inline-button friendly** — callback taps are acknowledged and replayed as routing text,
   so inline keyboards navigate exactly like reply-keyboard taps.
+- **Rich replies** — `context.ReplyRich(rich, keyboardRows)` sends a Bot API **rich
+  message** (real tables, collapsible details, buttons inside the message) through the
+  ordinary pipeline: no raw-client detour, no second send.
+- **Ephemeral answers** — `context.Ephemeral()` replies to a button tap with a message only
+  its presser sees, in place of the pressed message when asked, so a confirmation never
+  clutters the chat.
 - **Shared location & contact** — reply-keyboard buttons requesting a location or a contact
   arrive at the waiting form as the structured `context.Location` / `context.Contact` plus
   their readable text encoding (`"55.7558,37.6173"` / the phone number).
@@ -56,14 +62,16 @@ Telegram ──long polling──► TelegramBotBus.Income ──► IFormRetrie
                                                        ▼
                                             form.RenderAsync(context)
                                                        │
-                                   TelegramBotBus.Outcome ──► SendMessage ──► Telegram
+                                   TelegramBotBus.Outcome ──► SendMessage / SendRichMessage ──► Telegram
 ```
 
 - `TelegramBotStartup` (a hosted service) polls and feeds `Income`; shared locations and
   contacts enter the pipeline as their text encoding plus the structured payload;
 - the router resolves the incoming text to a form: registered commands win, then
   registered keyboard keys, then the stateful form atop the chat's history;
-- the rendered `MessageContext` goes to `Outcome` and is sent back to the chat.
+- the rendered `MessageContext` goes to `Outcome` and is sent back to the chat: a rich
+  reply is sent with `SendRichMessage`, a text reply with `SendMessage`, and an ephemeral
+  one goes only to the user whose button produced the turn.
 
 ## Quick start
 
@@ -380,6 +388,52 @@ keep BotFather in charge.
 the press arrives as the message `/start confirm_42` and routes to your start form,
 which reads the parameter from `context.Text`.
 
+## Rich replies and ephemeral answers
+
+`ReplyRich` puts a Bot API **rich message** (real tables, collapsible details, buttons and
+anchors inside the message) on the same pipeline as a text reply, so a screen that needs
+them no longer has to send over the raw client and return an empty context:
+
+```csharp
+var rich = new InputRichMessage
+{
+  Blocks =
+  [
+    new InputRichBlockTable { Cells = cells, IsBordered = true, IsStriped = true },
+    new InputRichBlockDetails { Summary = whySummary, Blocks = whyBlocks, IsOpen = false },
+    new InputRichBlockButtons
+    {
+      Buttons = [new RichMessageButton(new RichTextText { Text = "Week" }) { CallbackData = "week" }],
+    },
+  ],
+};
+
+return context.ReplyRich(rich, keyboardRows);
+```
+
+One turn sends **one** message: whichever of `Reply(...)` and `ReplyRich(...)` the form
+called last wins, the other output side is cleared. Rich messages are a recent Bot API
+feature with a client-version floor, so keep a text fallback for every rich screen — a
+`<pre>` block is the closest an ordinary message gets to a table.
+
+Buttons inside a rich message carry `CallbackData`, and a tap arrives as routing text just
+like a reply-keyboard press. A tap can reach the bot while an unrelated form sits atop the
+chat's history (a message sent by a background job has no form there at all), so callback
+data should be something the router resolves on its own — a registered command
+(`week`, `mute 42`) is the safe shape.
+
+The answer to a tap can skip the chat entirely:
+
+```csharp
+return context.Reply("Alerts are off for this location").Ephemeral(replaceCallbackQueryMessage: true);
+```
+
+`Ephemeral()` sends the reply as an ephemeral message: only the user who pressed sees it,
+nothing is stored in the chat, and with `replaceCallbackQueryMessage` the answer takes the
+place of the message that carries the button. That is right for confirming something already
+persisted (a mute, a toggle) and wrong for anything worth reading again (a verdict). It needs
+a turn that came from a button tap; the framework logs and sends a regular message otherwise.
+
 ## Utilities
 
 - `TelegramTimeZones.Popular()` — IANA quick-pick list with current UTC offsets for
@@ -387,16 +441,18 @@ which reads the parameter from `context.Text`.
 - `KeyboardCache` — process-wide static keyboards; `GlobalKeyboardFormBase` builds one
   keyboard per form type.
 - `MessageContext` — `Reply(text, keyboardRows)`, `Reply(text, replyMarkup: ...)`,
+  `ReplyRich(rich, keyboardRows)`, `Ephemeral(replaceCallbackQueryMessage)`,
   `Forward(newRoutingText)`; parse mode, entities and reply-to are carried to the sender.
   `Location` / `Contact` carry the structured payload of a shared location / contact
-  (null for any other incoming message).
+  (null for any other incoming message), `CallbackQueryId` the query a tapped button answered.
 - Per-form render timeout via `IForm.TimeoutSec` (default 30 s).
 
 ## Example bot
 
 [`telegram-bot-forms-example/`](telegram-bot-forms-example) demonstrates every feature end to end: consent-gated start
 with a deep-link parameter, a ru/en main menu, a paginated + searchable products list
-with a custom action row, a detail page reached by navigation, an input wizard, a
+with a custom action row, a product card as a **rich message** (table, collapsible
+details, in-message watch button answered with an **ephemeral** reply), an input wizard, a
 location/contact/text funnel, a per-chat language switcher, a time zone picker, a
 `/help` command and a code-owned bot profile.
 

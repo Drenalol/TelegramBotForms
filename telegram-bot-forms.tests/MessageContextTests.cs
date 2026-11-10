@@ -75,4 +75,59 @@ public class MessageContextTests
     Assert.That(context.Contact.FirstName, Is.EqualTo("Ada"));
     Assert.That(context.Location, Is.Null);
   }
+
+  [Test]
+  public void Constructor_Carries_The_Callback_Query_Of_A_Tapped_Button()
+  {
+    var context = new MessageContext(TestBot.Chat(), "mute 42", callbackQueryId: "query-7");
+
+    Assert.That(context.CallbackQueryId, Is.EqualTo("query-7"));
+    Assert.That(new MessageContext(TestBot.Chat(), "written").CallbackQueryId, Is.Null);
+  }
+
+  [Test]
+  public void ReplyRich_Sends_Rich_Instead_Of_Text()
+  {
+    var context = new MessageContext(TestBot.Chat(), "in");
+
+    context.Reply("text");
+    context.ReplyRich(Rich(), [[new KeyboardButton("a")]]);
+
+    Assert.That(context.RichReply, Is.Not.Null);
+    Assert.That(context.ReplyText, Is.Null, "one turn sends one message");
+    Assert.That((context.ReplyMarkup as ReplyKeyboardMarkup)?.Keyboard.SelectMany(row => row).Count(), Is.EqualTo(1));
+  }
+
+  [Test]
+  public void Reply_After_ReplyRich_Sends_Text_Instead()
+  {
+    var context = new MessageContext(TestBot.Chat(), "in");
+
+    context.ReplyRich(Rich());
+    context.Reply("text");
+
+    Assert.That(context.RichReply, Is.Null);
+    Assert.That(context.ReplyText, Is.EqualTo("text"));
+  }
+
+  [Test]
+  public void Ephemeral_Arms_The_Reply_Of_A_Button_Turn()
+  {
+    var context = new MessageContext(TestBot.Chat(), "mute 42", callbackQueryId: "query-7");
+
+    context.Reply("done").Ephemeral(replaceCallbackQueryMessage: true);
+
+    Assert.That(context.EphemeralReply, Is.True);
+    Assert.That(context.ReplaceCallbackQueryMessage, Is.True);
+
+    // a written message has no query to answer: the flags are set here and the host is
+    // what refuses them, because only the host knows the query id is missing
+    var written = new MessageContext(TestBot.Chat(), "written").Reply("done").Ephemeral();
+
+    Assert.That(written.CallbackQueryId, Is.Null);
+    Assert.That(written.ReplaceCallbackQueryMessage, Is.False);
+  }
+
+  private static InputRichMessage Rich() =>
+    new() { Blocks = [new InputRichBlockParagraph { Text = new RichTextText { Text = "hello" } }] };
 }

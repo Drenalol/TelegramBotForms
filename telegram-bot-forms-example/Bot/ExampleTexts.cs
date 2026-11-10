@@ -91,9 +91,39 @@ public sealed class ExampleTexts : ITelegramTextLocalizer
 
   public static string RefreshButton(string language) => language == Russian ? "Обновить" : "Refresh";
 
-  public static string ProductCard(string language, Product product) => language == Russian
-    ? $"{product.Name}\nКатегория: {product.Category}\nЦена: {product.Price:0.##} $\nID: {product.Id}"
-    : $"{product.Name}\nCategory: {product.Category}\nPrice: {product.Price:0.##} $\nID: {product.Id}";
+  // --- rich product card -----------------------------------------------------------
+  //
+  // The card used to be ProductCard() text; it is a rich message now (see ProductForm),
+  // and every rich screen a bot ships should keep such a text version for clients that
+  // predate rich messages.
+
+  public static string SpecField(string language) => language == Russian ? "Параметр" : "Field";
+  public static string SpecValue(string language) => language == Russian ? "Значение" : "Value";
+  public static string SpecCategory(string language) => language == Russian ? "Категория" : "Category";
+  public static string SpecPrice(string language) => language == Russian ? "Цена" : "Price";
+  public static string SpecId(string language) => language == Russian ? "Артикул" : "ID";
+
+  public static string DetailsSummary(string language) =>
+    language == Russian ? "Как устроена эта карточка" : "What this card is made of";
+
+  public static string DetailsNote(string language) => language == Russian
+    ? "Заголовок, таблица, этот сворачиваемый блок и кнопки под ним - одно нативное rich-сообщение Telegram. Ранний клиент не умеет таблицы в сообщениях, поэтому у такого экрана всегда есть текстовая версия."
+    : "A heading, a table, this collapsible block and the buttons below it are one native Telegram rich message. An early client has no tables in messages, which is why such a screen keeps a text version too.";
+
+  public static string RichCardFooter(string language) =>
+    language == Russian ? "Drenalol.Telegram.Bot.Forms · RichReply" : "Drenalol.Telegram.Bot.Forms · RichReply";
+
+  public static string WatchButton(string language, bool watching) => language == Russian
+    ? (watching ? "🔕 Не следить" : "🔔 Следить")
+    : (watching ? "🔕 Unwatch" : "🔔 Watch");
+
+  public static string WatchResult(string language, int productId, bool watching) => language == Russian
+    ? $"{(watching ? "Слежу за товаром" : "Больше не слежу")} {productId}."
+    : $"{(watching ? "Watching product" : "Stopped watching product")} {productId}.";
+
+  public static string WatchNeedsId(string language) => language == Russian
+    ? "Напишите «watch 42», чтобы включить слежение за товаром."
+    : "Write \"watch 42\" to watch a product.";
 
   // --- profile wizard ----------------------------------------------------------------
 

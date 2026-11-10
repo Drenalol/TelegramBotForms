@@ -51,7 +51,9 @@ internal sealed class TelegramBotProvider : IDisposable
     {
       await AcknowledgeCallbackAsync(callback.Id);
 
-      return new MessageContext(callbackChat, callback.Data);
+      // The query id travels with the turn: it is what lets the form answer with an
+      // ephemeral message (MessageContext.Ephemeral) instead of a stored one.
+      return new MessageContext(callbackChat, callback.Data, callbackQueryId: callback.Id);
     }
 
     return update.Message switch
