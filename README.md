@@ -413,8 +413,14 @@ return context.ReplyRich(rich, keyboardRows);
 
 One turn sends **one** message: whichever of `Reply(...)` and `ReplyRich(...)` the form
 called last wins, the other output side is cleared. Rich messages are a recent Bot API
-feature with a client-version floor, so keep a text fallback for every rich screen — a
-`<pre>` block is the closest an ordinary message gets to a table.
+feature with a client-version floor, so every rich screen should carry its text twin — the
+host sends it when the server refuses the rich message:
+
+```csharp
+return context
+  .ReplyRich(rich, keyboardRows)
+  .WithTextFallback("Product 42\nCategory: Tools\nPrice: 12.5 $");
+```
 
 Buttons inside a rich message carry `CallbackData`, and a tap arrives as routing text just
 like a reply-keyboard press. A tap can reach the bot while an unrelated form sits atop the
@@ -441,7 +447,7 @@ a turn that came from a button tap; the framework logs and sends a regular messa
 - `KeyboardCache` — process-wide static keyboards; `GlobalKeyboardFormBase` builds one
   keyboard per form type.
 - `MessageContext` — `Reply(text, keyboardRows)`, `Reply(text, replyMarkup: ...)`,
-  `ReplyRich(rich, keyboardRows)`, `Ephemeral(replaceCallbackQueryMessage)`,
+  `ReplyRich(rich, keyboardRows)`, `WithTextFallback(text)`, `Ephemeral(replaceCallbackQueryMessage)`,
   `Forward(newRoutingText)`; parse mode, entities and reply-to are carried to the sender.
   `Location` / `Contact` carry the structured payload of a shared location / contact
   (null for any other incoming message), `CallbackQueryId` the query a tapped button answered.

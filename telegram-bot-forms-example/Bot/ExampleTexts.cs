@@ -93,11 +93,16 @@ public sealed class ExampleTexts : ITelegramTextLocalizer
 
   // --- rich product card -----------------------------------------------------------
   //
-  // The card used to be ProductCard() text; it is a rich message now (see ProductForm),
-  // and every rich screen a bot ships should keep such a text version for clients that
-  // predate rich messages.
+  // The card is a rich message (see ProductForm); ProductCard is its text twin, handed to
+  // the framework as the fallback for a client that cannot render rich messages or a send
+  // the server refused.
+
+  public static string ProductCard(string language, Product product) => language == Russian
+    ? $"{product.Name}\nКатегория: {product.Category}\nЦена: {product.Price:0.##} $\nID: {product.Id}"
+    : $"{product.Name}\nCategory: {product.Category}\nPrice: {product.Price:0.##} $\nID: {product.Id}";
 
   public static string SpecField(string language) => language == Russian ? "Параметр" : "Field";
+
   public static string SpecValue(string language) => language == Russian ? "Значение" : "Value";
   public static string SpecCategory(string language) => language == Russian ? "Категория" : "Category";
   public static string SpecPrice(string language) => language == Russian ? "Цена" : "Price";

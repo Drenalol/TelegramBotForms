@@ -95,18 +95,9 @@ public class TelegramBotStartup : BackgroundService
 
     // One turn sends one message, and a rich reply wins over the text one: a form that
     // produced tables/details/in-message buttons has nothing for the text send to add.
-    if (context.RichReply is { } rich)
-    {
-      await _telegramBotClient.SendRichMessage(
-        new ChatId(context.Chat.Id),
-        rich,
-        replyParameters: GetReplyParameters(context),
-        replyMarkup: context.ReplyMarkup,
-        ephemeralMessageParameters: ephemeral
-      );
-
+    // The text is what the turn falls back to when the rich message cannot be delivered.
+    if (context.RichReply is { } rich && await TrySendRichAsync(context, rich, ephemeral))
       return;
-    }
 
     if (context.ReplyText == null)
       return;
@@ -122,6 +113,36 @@ public class TelegramBotStartup : BackgroundService
       entities: context.Entities?.ToList(),
       ephemeralMessageParameters: ephemeral
     );
+  }
+
+  /// <summary>Sends a rich reply, false when the answer was rejected: rich messages are a
+  /// recent Bot API feature and a block the server dislikes fails the whole send, so the
+  /// turn still deserves its text. Only an answer of the server counts as a failure worth
+  /// degrading over - a cancelled turn propagates instead.</summary>
+  private async Task<bool> TrySendRichAsync(MessageContext context, InputRichMessage rich, EphemeralMessageParameters? ephemeral)
+  {
+    try
+    {
+      await _telegramBotClient.SendRichMessage(
+        new ChatId(context.Chat.Id),
+        rich,
+        replyParameters: GetReplyParameters(context),
+        replyMarkup: context.ReplyMarkup,
+        ephemeralMessageParameters: ephemeral
+      );
+
+      return true;
+    }
+    catch (ApiRequestException exception)
+    {
+      _logger.LogWarning(
+        exception,
+        "Chat {ChatId} could not be sent the rich reply{Fallback}",
+        context.Chat.Id,
+        context.ReplyText is null ? " and has no text fallback" : ", sending its text fallback");
+
+      return false;
+    }
   }
 
   private static ReplyParameters? GetReplyParameters(MessageContext context) =>

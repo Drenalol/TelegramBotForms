@@ -33,8 +33,10 @@ public interface IOutputContext
 
   /// <summary>A rich message (Bot API rich messages) to send instead of
   /// <see cref="ReplyText"/>: real tables, collapsible details, buttons inside the
-  /// message. Set by <see cref="MessageContext.ReplyRich(InputRichMessage,ReplyMarkup,int?,Exception?)"/>.
-  /// When it is set, <see cref="ReplyText"/> is ignored — a turn sends one message.</summary>
+  /// message. Set by <see cref="MessageContext.ReplyRich(InputRichMessage,ReplyMarkup,int?,Exception?)"/>;
+  /// <see cref="ReplyText"/> then only serves as its fallback (see
+  /// <see cref="MessageContext.WithTextFallback"/>).
+  /// One turn sends one message.</summary>
   public InputRichMessage? RichReply { get; }
 
   /// <summary>The reply is an ephemeral message: it goes only to the user who pressed the
@@ -176,6 +178,21 @@ public class MessageContext : IInputContext, IOutputContext, IErrorContext
     ReplyText = null;
     ParseMode = null;
     Entities = null;
+
+    return this;
+  }
+
+  /// <summary>
+  /// The text to send when the rich message <em>cannot</em> be delivered — an older client
+  /// behind an outdated Bot API, a block the server rejected. Without it a failed rich
+  /// reply simply is not sent, so a screen whose numbers matter carries the same verdict as
+  /// text (an ordinary message has no tables, a <c>&lt;pre&gt;</c> block is the closest).
+  /// </summary>
+  public MessageContext WithTextFallback(string text, ParseMode? parseMode = null, IEnumerable<MessageEntity>? entities = null)
+  {
+    ReplyText = text;
+    ParseMode = parseMode;
+    Entities = entities;
 
     return this;
   }

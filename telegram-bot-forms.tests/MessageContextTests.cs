@@ -111,6 +111,19 @@ public class MessageContextTests
   }
 
   [Test]
+  public void WithTextFallback_Keeps_Both_Sides_For_The_Host_To_Degrade()
+  {
+    var context = new MessageContext(TestBot.Chat(), "in");
+
+    context.ReplyRich(Rich()).WithTextFallback("text", ParseMode.Html);
+
+    // the rich message goes first, the text is what the host sends when it is refused
+    Assert.That(context.RichReply, Is.Not.Null);
+    Assert.That(context.ReplyText, Is.EqualTo("text"));
+    Assert.That(context.ParseMode, Is.EqualTo(ParseMode.Html));
+  }
+
+  [Test]
   public void Ephemeral_Arms_The_Reply_Of_A_Button_Turn()
   {
     var context = new MessageContext(TestBot.Chat(), "mute 42", callbackQueryId: "query-7");

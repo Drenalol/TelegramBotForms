@@ -11,9 +11,8 @@ namespace ExampleBot.Bot;
 /// history right back to the exact page of the list the user came from.
 /// <para>
 /// The card is a <b>rich message</b>: a real table for the attributes, a collapsible
-/// details block and a button row inside the message. Rich messages need a recent client,
-/// so a bot that cannot assume one keeps a text version of the same screen (the framework
-/// README describes where that fallback belongs).
+/// details block and a button row inside the message — plus the same card as text, handed
+/// to the framework as the fallback it sends when the rich message is refused.
 /// </para>
 /// </summary>
 public sealed class ProductForm : FormBase
@@ -35,7 +34,9 @@ public sealed class ProductForm : FormBase
     var language = await GetLanguageAsync(context.Chat, cancellationToken);
     var backRow = await CreateBackButtonRowAsync(context.Chat, cancellationToken);
 
-    return context.ReplyRich(BuildCard(product, language, _watched.IsWatched(context.Chat.Id, product.Id)), [backRow]);
+    return context
+      .ReplyRich(BuildCard(product, language, _watched.IsWatched(context.Chat.Id, product.Id)), [backRow])
+      .WithTextFallback(ExampleTexts.ProductCard(language, product));
   }
 
   /// <summary>The card as a rich message: heading, attribute table, the long note behind
