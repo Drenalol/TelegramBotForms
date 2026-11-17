@@ -20,6 +20,11 @@ public interface IInputContext
   /// message. The host acknowledged the query already; the id is what lets the reply be
   /// sent back as an ephemeral message (see <see cref="IOutputContext.EphemeralReply"/>).</summary>
   public string? CallbackQueryId { get; }
+
+  /// <summary>Identifier of the message the tapped button was pressed in, null when the turn
+  /// did not come from a button of a stored message. It is what lets the reply edit that very
+  /// message (see <see cref="IOutputContext.ReplacesMessage"/>).</summary>
+  public int? CallbackMessageId { get; }
 }
 
 /// <summary>The outgoing side of a conversation turn: what the bot answers.</summary>
@@ -47,6 +52,15 @@ public interface IOutputContext
   /// <summary>The ephemeral reply replaces the message that carries the pressed button
   /// instead of being shown next to it.</summary>
   public bool ReplaceCallbackQueryMessage { get; }
+
+  /// <summary>The reply <b>edits the pressed message in place</b> instead of being sent as a
+  /// new one, so the answer is stored in the chat and stays readable after a restart and on
+  /// the user's other devices — none of which an ephemeral replacement
+  /// (<see cref="ReplaceCallbackQueryMessage"/>, a client-side view that the app forgets)
+  /// gives. Set by <see cref="MessageContext.ReplaceMessage"/>; needs
+  /// <see cref="IInputContext.CallbackMessageId"/>, and the host sends a new message
+  /// when the turn has none.</summary>
+  public bool ReplacesMessage { get; }
 }
 
 /// <summary>An exception captured while rendering, logged by the bot host.</summary>
@@ -61,7 +75,8 @@ public interface IErrorContext
 /// and friends. The host sends <see cref="RichReply"/> when the form produced a rich
 /// message, otherwise <see cref="ReplyText"/> (with the markup and entities) back to the
 /// chat; <see cref="EphemeralReply"/> turns whatever it sends into a message that only
-/// the user who pressed the button sees.
+/// the user who pressed the button sees, and <see cref="ReplacesMessage"/> makes the send an
+/// edit of the message whose button was pressed.
 /// </summary>
 public class MessageContext : IInputContext, IOutputContext, IErrorContext
 {
@@ -77,6 +92,9 @@ public class MessageContext : IInputContext, IOutputContext, IErrorContext
   /// <inheritdoc cref="IInputContext.CallbackQueryId"/>
   public string? CallbackQueryId { get; }
 
+  /// <inheritdoc cref="IInputContext.CallbackMessageId"/>
+  public int? CallbackMessageId { get; }
+
   public string? ReplyText { get; private set; }
   public ParseMode? ParseMode { get; private set; }
   public IEnumerable<MessageEntity>? Entities { get; private set; }
@@ -85,6 +103,7 @@ public class MessageContext : IInputContext, IOutputContext, IErrorContext
   public InputRichMessage? RichReply { get; private set; }
   public bool EphemeralReply { get; private set; }
   public bool ReplaceCallbackQueryMessage { get; private set; }
+  public bool ReplacesMessage { get; private set; }
   public Exception? Exception { get; private set; }
 
   /// <param name="chat">The chat the turn came from.</param>
@@ -94,12 +113,15 @@ public class MessageContext : IInputContext, IOutputContext, IErrorContext
   /// <param name="contact">The structured payload of a contact message, null otherwise.</param>
   /// <param name="callbackQueryId">Identifier of the callback query when the turn is a
   /// tapped inline button replayed as routing text, null for a written message.</param>
+  /// <param name="callbackMessageId">Identifier of the message the tapped button was pressed
+  /// in, null when the turn is not a tap on a button of a stored message.</param>
   public MessageContext(
     Chat chat,
     string argument,
     Location? location = null,
     Contact? contact = null,
-    string? callbackQueryId = null
+    string? callbackQueryId = null,
+    int? callbackMessageId = null
   )
   {
     Chat = chat;
@@ -107,6 +129,7 @@ public class MessageContext : IInputContext, IOutputContext, IErrorContext
     Location = location;
     Contact = contact;
     CallbackQueryId = callbackQueryId;
+    CallbackMessageId = callbackMessageId;
   }
 
   /// <summary>Replies with text and a reply keyboard built from the given rows.</summary>
@@ -210,6 +233,24 @@ public class MessageContext : IInputContext, IOutputContext, IErrorContext
   {
     EphemeralReply = true;
     ReplaceCallbackQueryMessage = replaceCallbackQueryMessage;
+
+    return this;
+  }
+
+  /// <summary>
+  /// Turns the reply into an <b>edit of the message the pressed button sits in</b>: the chat
+  /// keeps one message that now says what happened instead of a question that has already been
+  /// answered, and, unlike <see cref="Ephemeral"/>, it keeps it <em>for good</em> — the edit is
+  /// stored, so the answer survives an app restart and appears on the user's other devices.
+  /// That is the right answer to a tap whose result must be readable later (a rating, a mute);
+  /// a confirmation the reader never needs again fits <see cref="Ephemeral"/> better.
+  /// The buttons of the replaced message do not survive the edit: an answered question is not
+  /// tappable twice. Only a turn that came from a button of a stored message can be replaced;
+  /// the host logs and sends the reply as a new message otherwise.
+  /// </summary>
+  public MessageContext ReplaceMessage()
+  {
+    ReplacesMessage = true;
 
     return this;
   }

@@ -12,7 +12,9 @@ namespace ExampleBot.Bot;
 /// The answer is <b>ephemeral</b>: only the user who pressed sees it and nothing is added
 /// to the chat, which is right because the flag itself is stored in <see cref="WatchStore"/>.
 /// Pass <c>Ephemeral(replaceCallbackQueryMessage: true)</c> to have it take the place of the
-/// message with the button instead of sitting next to it.
+/// message with the button instead of sitting next to it — and note that replacement is a
+/// client-side view the app forgets on restart: an answer that must outlive the tap is edited
+/// into the pressed message with <c>ReplaceMessage()</c> instead.
 /// </para>
 /// </summary>
 public sealed class WatchCommand(WatchStore watched, IChatLanguageResolver languages) : IBotCommand

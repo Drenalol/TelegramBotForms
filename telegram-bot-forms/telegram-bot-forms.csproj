@@ -10,7 +10,7 @@
         <PackageId>Drenalol.Telegram.Bot.Forms</PackageId>
         <Title>Drenalol.Telegram.Bot.Forms</Title>
         <Authors>Bogdan Yanysh</Authors>
-        <Version>1.2.1</Version>
+        <Version>1.2.2</Version>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
         <PackageTags>Telegram;Bot;Forms;Navigation;Dialog;Pagination;Telegram.Bot</PackageTags>
         <Description>Chat-first Telegram bot framework for Telegram.Bot: DI-scoped forms, per-chat navigation history with a Back action, paginated list forms, location and contact sharing, rich and ephemeral replies, free-text commands, per-chat localization and BotFather profile sync.</Description>

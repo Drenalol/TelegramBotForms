@@ -45,6 +45,9 @@ with a working "Back", browsers come with **pagination and search** out of the b
 - **Ephemeral answers** — `context.Ephemeral()` replies to a button tap with a message only
   its presser sees, in place of the pressed message when asked, so a confirmation never
   clutters the chat.
+- **In-place answers** — `context.ReplaceMessage()` edits the message whose button was pressed
+  into the answer instead of adding a message below it, and the edit is stored: the answered
+  question does not come back on the next restart.
 - **Shared location & contact** — reply-keyboard buttons requesting a location or a contact
   arrive at the waiting form as the structured `context.Location` / `context.Contact` plus
   their readable text encoding (`"55.7558,37.6173"` / the phone number).
@@ -70,8 +73,9 @@ Telegram ──long polling──► TelegramBotBus.Income ──► IFormRetrie
 - the router resolves the incoming text to a form: registered commands win, then
   registered keyboard keys, then the stateful form atop the chat's history;
 - the rendered `MessageContext` goes to `Outcome` and is sent back to the chat: a rich
-  reply is sent with `SendRichMessage`, a text reply with `SendMessage`, and an ephemeral
-  one goes only to the user whose button produced the turn.
+  reply is sent with `SendRichMessage`, a text reply with `SendMessage`, an ephemeral
+  one goes only to the user whose button produced the turn, and an in-place one edits
+  the message that button was pressed in.
 
 ## Quick start
 
@@ -436,9 +440,27 @@ return context.Reply("Alerts are off for this location").Ephemeral(replaceCallba
 
 `Ephemeral()` sends the reply as an ephemeral message: only the user who pressed sees it,
 nothing is stored in the chat, and with `replaceCallbackQueryMessage` the answer takes the
-place of the message that carries the button. That is right for confirming something already
-persisted (a mute, a toggle) and wrong for anything worth reading again (a verdict). It needs
-a turn that came from a button tap; the framework logs and sends a regular message otherwise.
+place of the message that carries the button. That replacement is a **client-side view, not a
+stored message**: Telegram delivers an ephemeral reply to the app that pressed, within 15
+seconds of the tap, and the docs say such messages "may disappear automatically after some
+time, or if the app is restarted" — which leaves the pressed message, buttons and all, back in
+the chat tomorrow. Right for a confirmation the reader never needs again, wrong for an answer
+that should still be there later.
+
+When the answer is what the pressed message should now say, edit it:
+
+```csharp
+return context.Reply("Noted: the sunset on 2026-11-16 was beautiful").ReplaceMessage();
+```
+
+`ReplaceMessage()` sends the reply as `editMessageText` of the message the button was pressed
+in, so the answer is **stored**: it survives a restart, appears on the user's other devices,
+and leaves one message where the question was instead of a question that looks unanswered
+forever. The inline keyboard of the edited message does not survive the edit, so an answered
+question is never tappable twice (pass an `InlineKeyboardMarkup` to keep buttons). A rich reply
+edits into a rich message — `editMessageText` carries `rich_message` — and its text twin into a
+text one. A refused edit (a message the bot can no longer touch) and a turn that did not come
+from a button of a stored message are both logged and sent as a new message instead.
 
 ## Utilities
 
@@ -448,9 +470,10 @@ a turn that came from a button tap; the framework logs and sends a regular messa
   keyboard per form type.
 - `MessageContext` — `Reply(text, keyboardRows)`, `Reply(text, replyMarkup: ...)`,
   `ReplyRich(rich, keyboardRows)`, `WithTextFallback(text)`, `Ephemeral(replaceCallbackQueryMessage)`,
-  `Forward(newRoutingText)`; parse mode, entities and reply-to are carried to the sender.
-  `Location` / `Contact` carry the structured payload of a shared location / contact
-  (null for any other incoming message), `CallbackQueryId` the query a tapped button answered.
+  `ReplaceMessage()`, `Forward(newRoutingText)`; parse mode, entities and reply-to are carried
+  to the sender. `Location` / `Contact` carry the structured payload of a shared location /
+  contact (null for any other incoming message), `CallbackQueryId` the query a tapped button
+  answered, `CallbackMessageId` the message it was pressed in.
 - Per-form render timeout via `IForm.TimeoutSec` (default 30 s).
 
 ## Example bot

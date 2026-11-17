@@ -141,6 +141,25 @@ public class MessageContextTests
     Assert.That(written.ReplaceCallbackQueryMessage, Is.False);
   }
 
+  [Test]
+  public void ReplaceMessage_Arms_The_Reply_Of_A_Button_Turn()
+  {
+    var context = new MessageContext(TestBot.Chat(), "rate 7 2026-11-16 sunset beautiful", callbackQueryId: "query-7", callbackMessageId: 431);
+
+    context.Reply("noted").ReplaceMessage();
+
+    Assert.That(context.ReplacesMessage, Is.True);
+
+    // the message the pressed button sits in is the one the host edits
+    Assert.That(context.CallbackMessageId, Is.EqualTo(431));
+
+    // a written message has nothing to edit: the flag is set here and the host is what refuses
+    // it, because only the host knows the id is missing
+    var written = new MessageContext(TestBot.Chat(), "written").Reply("noted").ReplaceMessage();
+
+    Assert.That(written.CallbackMessageId, Is.Null);
+  }
+
   private static InputRichMessage Rich() =>
     new() { Blocks = [new InputRichBlockParagraph { Text = new RichTextText { Text = "hello" } }] };
 }

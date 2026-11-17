@@ -7,6 +7,7 @@ using Telegram.Bot.Exceptions;
 using Telegram.Bot.Polling;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
+using Telegram.Bot.Types.ReplyMarkups;
 
 namespace Drenalol.Telegram.Bot.Forms;
 
@@ -91,6 +92,11 @@ public class TelegramBotStartup : BackgroundService
     if (context.Exception != null)
       _logger.LogError(context.Exception, "Chat {ChatId} render failed: {ErrorText}", context.Chat.Id, context.Exception.Message);
 
+    // An in-place reply is the kind of answer that has to stay in the chat: it edits the
+    // message whose button was pressed, and only a refused edit makes it a new message.
+    if (context.ReplacesMessage && TryGetMessageToReplace(context) is { } messageId && await TryReplaceMessageAsync(context, messageId))
+      return;
+
     var ephemeral = TryGetEphemeralParameters(context);
 
     // One turn sends one message, and a rich reply wins over the text one: a form that
@@ -114,6 +120,115 @@ public class TelegramBotStartup : BackgroundService
       ephemeralMessageParameters: ephemeral
     );
   }
+
+  /// <summary>
+  /// The message an in-place reply (<see cref="MessageContext.ReplaceMessage"/>) edits: the
+  /// one that carried the pressed button. Null, loudly, when the turn did not come from a
+  /// button of a stored message — a command that was typed by hand, a button of an ephemeral
+  /// message — because then there is nothing to edit and the reply is sent as a new message.
+  /// </summary>
+  private int? TryGetMessageToReplace(MessageContext context)
+  {
+    if (context.CallbackMessageId is not { } messageId)
+    {
+      _logger.LogWarning(
+        "Chat {ChatId} asked to answer in place of the pressed message, but the turn came from no message, sending the reply as a new one",
+        context.Chat.Id);
+
+      return null;
+    }
+
+    return messageId;
+  }
+
+  /// <summary>
+  /// Edits the pressed message into the reply instead of adding a message: the chat keeps the
+  /// answer where the question was, and keeps it after a restart, which an ephemeral
+  /// replacement does not. The inline keyboard of the edited message does not survive the edit
+  /// unless the reply carries one of its own, so an answered question is never tappable twice.
+  /// False means the turn is sent as a new message instead: the chat is more than two days old
+  /// for the bot, the message was deleted, the server refused the rich content.
+  /// </summary>
+  private async Task<bool> TryReplaceMessageAsync(MessageContext context, int messageId)
+  {
+    // only an inline keyboard can travel with an edit; a reply keyboard belongs to the chat,
+    // not to the message being edited, so it is dropped here
+    var inlineKeyboard = context.ReplyMarkup as InlineKeyboardMarkup;
+
+    if (context.RichReply is { } rich && await TryEditRichAsync(context, messageId, rich, inlineKeyboard))
+      return true;
+
+    return context.ReplyText is { } text && await TryEditTextAsync(context, messageId, text, inlineKeyboard);
+  }
+
+  private async Task<bool> TryEditRichAsync(MessageContext context, int messageId, InputRichMessage rich, InlineKeyboardMarkup? inlineKeyboard)
+  {
+    try
+    {
+      await _telegramBotClient.EditMessageText(
+        new ChatId(context.Chat.Id),
+        messageId,
+        text: null,
+        replyMarkup: inlineKeyboard,
+        richMessage: rich
+      );
+
+      return true;
+    }
+    catch (ApiRequestException exception) when (IsUnmodified(exception))
+    {
+      return true; // the message already says exactly this: the answer of an earlier tap
+    }
+    catch (ApiRequestException exception)
+    {
+      _logger.LogWarning(
+        exception,
+        "Chat {ChatId} message {MessageId} refused the rich edit{Fallback}",
+        context.Chat.Id,
+        messageId,
+        context.ReplyText is null ? " and has no text fallback" : ", editing it into the text one");
+
+      return false;
+    }
+  }
+
+  private async Task<bool> TryEditTextAsync(MessageContext context, int messageId, string text, InlineKeyboardMarkup? inlineKeyboard)
+  {
+    try
+    {
+      await _telegramBotClient.EditMessageText(
+        new ChatId(context.Chat.Id),
+        messageId,
+        text,
+        parseMode: context.ParseMode ?? default,
+        replyMarkup: inlineKeyboard,
+        // bot answers are utility texts - a link card preview only eats the screen
+        linkPreviewOptions: LinkPreviewOptions.Disabled,
+        entities: context.Entities?.ToList()
+      );
+
+      return true;
+    }
+    catch (ApiRequestException exception) when (IsUnmodified(exception))
+    {
+      return true; // the message already says exactly this: the answer of an earlier tap
+    }
+    catch (ApiRequestException exception)
+    {
+      _logger.LogWarning(
+        exception,
+        "Chat {ChatId} message {MessageId} could not be edited, sending the reply as a new message",
+        context.Chat.Id,
+        messageId);
+
+      return false;
+    }
+  }
+
+  /// <summary>Whether an edit failed only because nothing would change — the usual answer to a
+  /// second tap on a question that has already been turned into its result.</summary>
+  private static bool IsUnmodified(ApiRequestException exception) =>
+    exception.Message.Contains("not modified", StringComparison.OrdinalIgnoreCase);
 
   /// <summary>Sends a rich reply, false when the answer was rejected: rich messages are a
   /// recent Bot API feature and a block the server dislikes fails the whole send, so the
